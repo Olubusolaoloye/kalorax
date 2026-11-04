@@ -1125,3 +1125,121 @@ describe("private mode", () => {
     expect((await admin.as.query(api.access.overview, {})).adminListLocked).toBe(true);
   });
 });
+
+describe("AI coach", () => {
+  /** A Claude streaming response (server-sent events) with the given content blocks. */
+  const sse = (blocks: Array<{ type: "text"; text: string } | { type: "tool_use"; id: string; name: string; input: unknown }>, stop: string) => {
+    const ev = (type: string, data: object) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+    let body = ev("message_start", { message: { id: "msg_1", type: "message", role: "assistant", model: "claude-opus-5-5", content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1000, output_tokens: 1 } } });
+    blocks.forEach((b, index) => {
+      if (b.type === "text") {
+        body += ev("content_block_start", { index, content_block: { type: "text", text: "" } });
+        body += ev("content_block_delta", { index, delta: { type: "text_delta", text: b.text } });
+      } else {
+        body += ev("content_block_start", { index, content_block: { type: "tool_use", id: b.id, name: b.name, input: {} } });
+        body += ev("content_block_delta", { index, delta: { type: "input_json_delta", partial_json: JSON.stringify(b.input) } });
+      }
+      body += ev("content_block_stop", { index });
+    });
+    body += ev("message_delta", { delta: { stop_reason: stop, stop_sequence: null }, usage: { output_tokens: 200 } });
+    body += ev("message_stop", {});
+    return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+
+  async function member(t: ReturnType<typeof convexTest>) {
+    const m = await signedIn(t, "ada@example.com");
+    await m.as.mutation(api.profile.create, { ...PROFILE, role: "consumer", weightKg: 70 });
+    return m;
+  }
+
+  it("is off without an API key, and needs consent first", async () => {
+    const t = convexTest(schema, modules);
+    const m = await member(t);
+    expect(await m.as.query(api.coach.thread, {})).toMatchObject({ enabled: false, consented: false });
+    await expect(m.as.mutation(api.coach.send, { text: "hi" })).rejects.toThrow(/isn't switched on/);
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    await expect(m.as.mutation(api.coach.send, { text: "hi" })).rejects.toThrow(/agree/);
+  });
+
+  it("streams a reply, turns 'I ate…' into a one-tap diary action, and applies it only when tapped", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    const requests: Array<{ model: string; messages: unknown[]; system: Array<{ text: string }> }> = [];
+    const replies = [
+      sse([{ type: "text", text: "Nice choice!" }, { type: "tool_use", id: "toolu_1", name: "suggest_log_food", input: { food_id: "eba", grams: 250, portion_label: "Medium wrap", meal: "Lunch" } }], "tool_use"),
+      sse([{ type: "text", text: "Tap below to add it to your diary." }], "end_turn"),
+    ];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => { requests.push(JSON.parse(init.body)); return replies.shift()!; }));
+    try {
+      const t = convexTest(schema, modules);
+      const m = await member(t);
+      await m.as.mutation(api.coach.consent, {});
+      await m.as.mutation(api.coach.send, { text: "I had a medium wrap of eba for lunch" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      // The model saw the member's context and the message, on the right model.
+      expect(requests[0].model).toBe("claude-opus-5-5");
+      expect(requests[0].system[1].text).toContain('"name":"Adaeze"');
+      const th = (await m.as.query(api.coach.thread, {}))!;
+      const reply = th.messages[1];
+      expect(reply).toMatchObject({ role: "assistant", status: "done", text: "Nice choice!\n\nTap below to add it to your diary." });
+      expect(reply.actions).toEqual([expect.objectContaining({ kind: "log_food", foodId: "eba", grams: 250, meal: "Lunch", state: "pending" })]);
+      expect(th.remaining).toBe(14);
+
+      // Nothing was logged until the member taps.
+      expect((await m.as.query(api.me.snapshot, {}))!.diary).toHaveLength(0);
+      await m.as.mutation(api.coach.applyAction, { messageId: reply.id, actionId: reply.actions[0].id });
+      expect((await m.as.query(api.me.snapshot, {}))!.diary).toEqual([expect.objectContaining({ foodId: "eba", grams: 250, meal: "Lunch", portionLabel: "Medium wrap" })]);
+      expect(await m.as.mutation(api.coach.applyAction, { messageId: reply.id, actionId: reply.actions[0].id })).toBe("done"); // once only
+
+      // Someone else can't apply it.
+      const bob = await signedIn(t, "bob@example.com");
+      await expect(bob.as.mutation(api.coach.applyAction, { messageId: reply.id, actionId: reply.actions[0].id })).rejects.toThrow(/Not found/);
+
+      // Admins see usage and cost, not content.
+      const admin = await signedIn(t, "admin@kalorax.ng");
+      const stats = await admin.as.query(api.coach.adminStats, {});
+      expect(stats.today.replies).toBe(1);
+      expect(stats.today.costUsd).toBeGreaterThan(0);
+      expect(JSON.stringify(stats)).not.toContain("eba");
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("limits members to 15 replies a day; failed replies don't count", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "bad" } }), { status: 400, headers: { "content-type": "application/json" } })));
+    try {
+      const t = convexTest(schema, modules);
+      const m = await member(t);
+      await m.as.mutation(api.coach.consent, {});
+      await m.as.mutation(api.coach.send, { text: "hello" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const th = (await m.as.query(api.coach.thread, {}))!;
+      expect(th.messages[1]).toMatchObject({ status: "error" });
+      expect(th.remaining).toBe(15);
+
+      // 15 successful replies today, then no more.
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        for (let i = 0; i < 15; i++) await ctx.db.insert("coachMessages", { userId: m.userId, role: "assistant", text: "ok", status: "done", createdAt: now + i });
+      });
+      await expect(m.as.mutation(api.coach.send, { text: "one more" })).rejects.toThrow(/today's 15/);
+      expect((await m.as.query(api.coach.thread, {}))!.remaining).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("deleting my data removes the coach chat", async () => {
+    const t = convexTest(schema, modules);
+    const m = await member(t);
+    await t.run((ctx) => ctx.db.insert("coachMessages", { userId: m.userId, role: "user", text: "hi", status: "done", createdAt: Date.now() }));
+    await m.as.mutation(api.data.deleteMyData, {});
+    expect(await t.run((ctx) => ctx.db.query("coachMessages").collect())).toEqual([]);
+  });
+});

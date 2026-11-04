@@ -84,7 +84,46 @@ export default defineSchema({
     userId: v.id("users"),
     planPrefs: v.optional(planPrefs),
     reminders: v.optional(reminderSettings),
+    /** When the member agreed to share their logs with the AI coach. */
+    coachConsentAt: v.optional(v.number()),
   }).index("by_user", ["userId"]),
+
+  /** Chat with the Kalorax AI coach. Assistant replies stream in (status "streaming") and may carry one-tap actions. */
+  coachMessages: defineTable({
+    userId: v.id("users"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    text: v.string(),
+    status: v.union(v.literal("streaming"), v.literal("done"), v.literal("error")),
+    /** Suggestions the member can apply in one tap (the coach never changes data by itself). */
+    actions: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          kind: v.union(v.literal("log_food"), v.literal("plan_meal")),
+          label: v.string(),
+          date: v.string(),
+          meal: v.union(v.literal("Breakfast"), v.literal("Lunch"), v.literal("Dinner"), v.literal("Snacks")),
+          kcal: v.number(),
+          foodId: v.optional(v.string()),
+          grams: v.optional(v.number()),
+          portionLabel: v.optional(v.string()),
+          recipeId: v.optional(v.string()),
+          portion: v.optional(v.number()),
+          state: v.union(v.literal("pending"), v.literal("done"), v.literal("dismissed")),
+        }),
+      ),
+    ),
+    createdAt: v.number(),
+  }).index("by_user", ["userId", "createdAt"]),
+
+  /** AI coach usage per Lagos day, across everyone, for the admin overview (no message content). */
+  coachDaily: defineTable({
+    day: v.string(),
+    replies: v.number(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    costUsd: v.number(),
+  }).index("by_day", ["day"]),
 
   /** Web push subscriptions, one per device/browser. */
   pushSubscriptions: defineTable({

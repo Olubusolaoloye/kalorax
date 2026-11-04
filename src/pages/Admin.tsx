@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck, CircleX, Copy, Download, Gauge, HeartPulse, Lock, LockOpen, MessageCircle, NotebookPen, ShieldAlert, ShieldCheck, UserMinus, UserPlus, Users } from "lucide-react";
+import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck, CircleX, Copy, Download, Gauge, HeartPulse, Lock, LockOpen, MessageCircle, NotebookPen, ShieldAlert, ShieldCheck, Sparkles, UserMinus, UserPlus, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
@@ -129,11 +129,31 @@ function Overview({ o, onTab }: { o: OverviewData; onTab: (t: Tab) => void }) {
           <Stat label="Reminders sent this week" value={o.reminders.sentThisWeek} />
         </Panel>
       </div>
+      <CoachPanel />
       <SpeedPanel />
       <p className="sample-notice">
         Admins see counts and activity, not message text or anyone's food log. Days are in Nigeria time. Figures update live.
       </p>
     </>
+  );
+}
+
+/** AI coach usage and cost (no message content). */
+function CoachPanel() {
+  const s = useQuery(api.coach.adminStats);
+  if (s === undefined) return null;
+  const usd = (n: number) => `$${n.toFixed(2)}`;
+  return (
+    <section className="card admin-panel">
+      <h2 className="row"><Sparkles size={17} /> AI coach <span className="muted small">{s.enabled ? `on · ${s.dailyLimit} messages per member a day` : "off: add ANTHROPIC_API_KEY in Convex to switch it on"}</span></h2>
+      <dl>
+        <Stat label="Replies today" value={s.today.replies} />
+        <Stat label="Cost today" text={usd(s.today.costUsd)} />
+        <Stat label="Replies, last 30 days" value={s.last30.replies} />
+        <Stat label="Cost, last 30 days" text={usd(s.last30.costUsd)} />
+      </dl>
+      <p className="small muted">Admins see counts and cost only, never what members ask the coach.</p>
+    </section>
   );
 }
 

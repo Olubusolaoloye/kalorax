@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { CoachThread, CoachThreadButton } from "../components/Coach";
 import { MessageBox } from "../components/MessageBox";
 import { CloudNotifyNudge } from "../components/ReminderChannels";
 import { GroceryCard, PeoplePicker, PlanCard } from "../components/Social";
@@ -70,13 +71,14 @@ function CloudMessages() {
   const [composing, setComposing] = useState(false);
   const activeId = params.get("c");
   const programmeId = params.get("p");
+  const coachOpen = params.get("coach") === "1";
   const open = (id: string | null) => setParams(id ? { c: id } : {}, { replace: !id });
   const openProgramme = (id: string) => setParams({ p: id });
   const q = query.trim().toLowerCase();
   const list = (inbox ?? []).filter((c) => !q || c.name.toLowerCase().includes(q) || (c.username ?? "").includes(q.replace(/^@/, "")));
   const active = inbox?.find((c) => c.id === activeId) ?? null;
   // On phones an open chat fills the screen, without the tab bar (see .chat-open in styles.css).
-  const chatOpen = !!(activeId || programmeId);
+  const chatOpen = !!(activeId || programmeId || coachOpen);
   useEffect(() => {
     if (!chatOpen) return;
     document.body.classList.add("chat-open");
@@ -94,6 +96,7 @@ function CloudMessages() {
           <SearchBox value={query} onChange={setQuery} placeholder="Search chats by name or @username" />
           {!q && (
             <ul className="pinned-list" aria-label="Pinned">
+              <li><CoachThreadButton active={coachOpen} onOpen={() => setParams({ coach: "1" })} /></li>
               {programmes?.map((c) => (
                 <li key={c.id}>
                   <button className={`thread pinned-thread${c.id === programmeId ? " on" : ""}`} onClick={() => openProgramme(c.id)}>
@@ -141,7 +144,9 @@ function CloudMessages() {
           <p className="small muted chat-note"><HeartPulse size={14} aria-hidden />Programme chats stay pinned at the top until you and your dietitian both end the programme.</p>
         </section>
 
-        {programmeId ? (
+        {coachOpen ? (
+          <CoachThread onBack={() => open(null)} />
+        ) : programmeId ? (
           <ProgrammeThreadView key={programmeId} id={programmeId} onBack={() => open(null)} />
         ) : active ? (
           <ThreadView key={active.id} id={active.id} onBack={() => open(null)} />
