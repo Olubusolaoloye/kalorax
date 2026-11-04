@@ -34,6 +34,7 @@ Kalorax runs in two modes:
 | `importLocal.ts` | One-time import of data saved on a device before accounts |
 | `waitlist.ts` | Public landing-page waitlist (`join`, one entry per email). New joiners get a "you're on the list" email through Resend when `AUTH_RESEND_KEY` is set, at most 60 an hour. Admins see everyone under **Admin → Waitlist** (`list`) and can download a CSV. Each download is noted in the audit log (`recordExport`) |
 | `access.ts` | Private mode and invite links. Admins switch private mode under **Admin → Access**. While it's on, the public home page shows only the waitlist, and only confirmed admins and people who used a **one-time invite link** (`/join/<token>`, 14 days) can create an account (checked in `auth.ts` when an account is created) or use the app (checked in `requireUser`). Admins create links from the Access or Waitlist tab and send them themselves (Copy link, WhatsApp). Sign-ups aren't email-verified, so knowing an invited or admin email gets nobody in. Turning private mode on the first time **locks the admin list**: the `ADMIN_EMAILS` accounts that exist then are confirmed, and admin emails that sign up later need confirming by an admin. Everything goes in the audit log |
+| `coach.ts`, `coachAgent.ts`, `coachTools.ts` | **Kalorax Coach**, the AI companion pinned at the top of Messages. `coach.send` stores the member's message and schedules `coachAgent.respond` (Node), which calls Claude (`claude-opus-5-5`, low effort, server-side refusal fallback) with the member's context and four tools: `search_foods`, `find_recipes`, `suggest_log_food` and `suggest_plan_meal`. Replies stream into `coachMessages`. The suggest tools only create one-tap buttons, and `coach.applyAction` adds to the diary or plan when the member taps. The limit is 15 replies per member per Lagos day (failed replies don't count; admins aren't limited). Members agree to share their logs first. Admins see replies and cost (`coachDaily`), never content. Deleting your data deletes the chat |
 | `helpers.ts`, `validators.ts` | Auth checks, ownership checks, input validation, `logAdminAction` (writes the admin audit log in the same transaction as the action) |
 | `backend.test.ts` | Tests (run with `npm test`) |
 
@@ -139,6 +140,14 @@ Pro uses the same Paystack key and webhook as programmes (Pro references start w
 - **Until Paystack is set up**, Pro is free for every verified dietitian ("early access").
 - **What lapses:** the Workbench and being listed on Programmes, so new members can't book them. Existing clients keep their chat, plans and check-ins, so members who already paid are never cut off.
 - After paying, Paystack returns the dietitian to `<SITE_URL>/pro/paid`. Students and members don't pay for anything here.
+
+## AI coach (Anthropic)
+
+1. Create an API key at https://platform.claude.com (Settings → API keys) and add billing.
+2. Save it in Convex: in the dashboard (project → **Production** → Settings → Environment Variables) add `ANTHROPIC_API_KEY`, or run `npx convex env set --prod ANTHROPIC_API_KEY sk-ant-…`. Don't put it in code or in Netlify.
+3. The coach appears in Messages straight away. Until the key is set, it shows "coming soon".
+
+Cost is about $0.01–0.03 a reply (Claude Opus 5.5: $4 / $20 per million input / output tokens). **Admin → Overview → AI coach** shows replies and cost per day. To change the daily limit, edit `DAILY_LIMIT` in `convex/coach.ts`.
 
 ## Speed
 

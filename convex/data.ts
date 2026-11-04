@@ -211,6 +211,7 @@ export const deleteMyData = mutation({
       for (const r of await ctx.db.query(table).withIndex("by_user", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(r._id);
     }
     for (const r of await ctx.db.query("reminderLog").withIndex("by_user_key", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(r._id);
+    for (const r of await ctx.db.query("coachMessages").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(r._id);
     for (const r of await ctx.db.query("verifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       if (r.documentId) await ctx.storage.delete(r.documentId);
       await ctx.db.delete(r._id);

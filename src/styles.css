@@ -1406,3 +1406,26 @@ fieldset.field { border: 0; padding: 0; min-width: 0; }
    Rows below the screen aren't laid out or painted until you scroll near them (the browser's own
    virtualization). "auto" remembers each row's real height once it has been shown. */
 .food-rows > li { content-visibility: auto; contain-intrinsic-size: auto 76px; }
+
+/* ---------- Kalorax Coach (AI chat) ---------- */
+.coach-avatar { background: var(--surface); color: var(--text); display: grid; place-items: center; }
+.coach-intro { align-items: center; text-align: center; justify-content: center; gap: 0.75rem; }
+.coach-intro h2 { margin: 0.25rem 0 0; }
+.coach-intro > p { max-width: 46ch; margin: 0; }
+.coach-points { list-style: none; padding: 0; margin: 0.25rem 0 0.5rem; display: grid; gap: 0.55rem; max-width: 52ch; text-align: left; }
+.coach-points li { display: flex; gap: 0.5rem; align-items: flex-start; }
+.coach-points svg { flex-shrink: 0; margin-top: 0.15rem; color: var(--brand-text); }
+.coach-starters { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: center; }
+.coach-bubble { max-width: 86%; }
+.bubble.is-error { opacity: 0.75; }
+.coach-action { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.55rem; padding: 0.55rem 0.65rem; border-radius: 14px; background: var(--surface-warm); border: 1px solid var(--border); }
+.coach-action strong { display: block; font-size: 0.85rem; }
+.coach-action small { display: block; font-size: 0.72rem; color: var(--muted); }
+.coach-action.is-done { background: var(--lime-soft); }
+.coach-action span { margin-top: 0; opacity: 1; }
+.coach-typing { display: inline-flex; gap: 4px; padding: 0.2rem 0; }
+.coach-typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: shimmer 1.2s ease-in-out infinite; }
+.coach-typing i:nth-child(2) { animation-delay: 0.15s; }
+.coach-typing i:nth-child(3) { animation-delay: 0.3s; }
+.coach-caret { display: inline-block !important; width: 0.5em; height: 1em; margin: 0 0 -0.15em 0.1em !important; background: currentColor; opacity: 0.4 !important; animation: shimmer 1s steps(2) infinite; }
+.coach-remaining { text-align: center; margin: 0 0 0.6rem; }

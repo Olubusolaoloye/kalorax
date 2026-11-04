@@ -14,6 +14,7 @@
     "build:ci": "if [ -n \"$CONVEX_DEPLOY_KEY\" ] && [ \"${CONTEXT:-production}\" = production ]; then npx convex deploy --cmd 'npm run build'; else npm run build; fi"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.96",
     "convex": "^1.46.0",
