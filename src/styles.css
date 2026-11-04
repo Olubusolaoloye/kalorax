@@ -1297,6 +1297,9 @@ fieldset.field { border: 0; padding: 0; min-width: 0; }
 .access-mode { display: flex; align-items: center; gap: 1rem; }
 .access-mode h2 { margin: 0 0 0.35rem; }
 .access-mode.is-private { border: 2px solid var(--lime-2); }
+.access-form { display: grid; gap: 0.6rem; margin: 0.75rem 0; }
+@media (min-width: 720px) { .access-form { grid-template-columns: 1fr 180px auto; align-items: center; } }
+.invite-link { word-break: break-all; font-family: ui-monospace, monospace; background: var(--surface-sunk); padding: 0.5rem 0.7rem; border-radius: 10px; }
 .locked-screen { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 1rem; padding: 24px; text-align: center; }
 .locked-screen p { max-width: 42ch; margin: 0; }
 .kpi-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }

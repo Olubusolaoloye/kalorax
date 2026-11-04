@@ -1,12 +1,25 @@
-// Private mode: while it's on, the public sees only the waitlist, and only admins and invited emails can
-// create an account or use the app (enforced in requireUser and when an account is created, see auth.ts).
+// Private mode: while it's on, the public sees only the waitlist, and only confirmed admins and people who
+// used a one-time invite link can create an account or use the app (enforced in requireUser and when an
+// account is created, see auth.ts). Invite links are shared by the admin (e.g. on WhatsApp); no email needed.
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { internal } from "./_generated/api";
-import { internalAction, mutation, query } from "./_generated/server";
-import { isPrivateMode, logAdminAction, requireAdmin } from "./helpers";
+import type { Id } from "./_generated/dataModel";
+import { mutation, query, type QueryCtx } from "./_generated/server";
+import { accessConfig, adminEmails, checkText, hasAccess, isPrivateMode, logAdminAction, openInvite, requireAdmin } from "./helpers";
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const role = v.union(v.literal("member"), v.literal("student"), v.literal("dietitian"));
+/** An unused invite link stops working after 14 days. */
+const INVITE_DAYS = 14;
+const TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+/** Accounts whose email is listed in ADMIN_EMAILS (their stored email may differ in case; both are tried). */
+async function adminEmailAccounts(ctx: QueryCtx) {
+  const found = new Map<Id<"users">, string>();
+  for (const email of adminEmails()) {
+    for (const u of await ctx.db.query("users").withIndex("email", (q) => q.eq("email", email)).collect()) found.set(u._id, email);
+  }
+  return found;
+}
 
 /** Public: whether the app is in private mode (the landing page shows only the waitlist). */
 export const status = query({
@@ -14,93 +27,109 @@ export const status = query({
   handler: async (ctx) => ({ privateMode: await isPrivateMode(ctx) }),
 });
 
-/** Admin: turn private mode on or off. */
+/**
+ * Admin: turn private mode on or off. The first time it's turned on, the admin list is locked: the
+ * ADMIN_EMAILS accounts that exist now become the confirmed admins, and later ones need confirming.
+ */
 export const setPrivateMode = mutation({
   args: { on: v.boolean() },
   handler: async (ctx, { on }) => {
     const adminId = await requireAdmin(ctx);
-    const row = await ctx.db.query("appConfig").withIndex("by_key", (q) => q.eq("key", "access")).unique();
+    const row = await accessConfig(ctx);
     if (!!row?.privateMode === on) return;
-    if (row) await ctx.db.patch(row._id, { privateMode: on, updatedAt: Date.now() });
-    else await ctx.db.insert("appConfig", { key: "access", privateMode: on, updatedAt: Date.now() });
+    const adminIds = row?.adminIds ?? (on ? [...new Set([adminId, ...(await adminEmailAccounts(ctx)).keys()])] : undefined);
+    const patch = { privateMode: on, updatedAt: Date.now(), ...(adminIds ? { adminIds } : {}) };
+    if (row) await ctx.db.patch(row._id, patch);
+    else await ctx.db.insert("appConfig", { key: "access", ...patch });
     await logAdminAction(ctx, adminId, on ? "private_mode_on" : "private_mode_off", undefined,
-      on ? "Private mode on: only admins and invited people can sign up and use the app" : "Private mode off: anyone can sign up");
+      on ? "Private mode on: only admins and people with an invite link can sign up and use the app" : "Private mode off: anyone can sign up");
   },
 });
 
-/** Admin: let this email in while private mode is on. Sends an invite email when email is set up. */
-export const invite = mutation({
-  args: { email: v.string(), role },
-  handler: async (ctx, { email, role }) => {
+/**
+ * Admin: create a one-time invite link. The admin's browser makes the token (32 random bytes), so the server
+ * never needs a random source; it only checks the format and that it's new.
+ */
+export const createInvite = mutation({
+  args: { token: v.string(), label: v.string(), role },
+  handler: async (ctx, { token, label, role }) => {
     const adminId = await requireAdmin(ctx);
-    const clean = email.trim().toLowerCase();
-    if (clean.length > 254 || !EMAIL.test(clean)) throw new ConvexError("Please enter a valid email address.");
-    if (await ctx.db.query("invites").withIndex("by_email", (q) => q.eq("email", clean)).first()) return { alreadyInvited: true, emailed: false };
-    await ctx.db.insert("invites", { email: clean, role, invitedBy: adminId, createdAt: Date.now() });
-    await logAdminAction(ctx, adminId, "invite_added", undefined, `Invited ${clean} (${role})`);
-    const emailed = !!process.env.AUTH_RESEND_KEY;
-    if (emailed) await ctx.scheduler.runAfter(0, internal.access.sendInvite, { email: clean });
-    return { alreadyInvited: false, emailed };
+    if (!TOKEN.test(token)) throw new ConvexError("Invalid invite token.");
+    const clean = label.trim();
+    if (!clean) throw new ConvexError("Add a name or email so you know who the link is for.");
+    checkText(clean, 120, "Label");
+    if (await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token)).unique()) throw new ConvexError("Please try again.");
+    const now = Date.now();
+    await ctx.db.insert("invites", { token, label: clean, role, invitedBy: adminId, createdAt: now, expiresAt: now + INVITE_DAYS * 86_400_000 });
+    await logAdminAction(ctx, adminId, "invite_added", undefined, `Invite link for ${clean} (${role})`);
   },
 });
 
-/** Admin: take an invite back. Someone who already has an account loses access while private mode is on. */
+/** Admin: cancel an invite link, or take access away from whoever used it (while private mode is on). */
 export const removeInvite = mutation({
-  args: { email: v.string() },
-  handler: async (ctx, { email }) => {
+  args: { id: v.id("invites") },
+  handler: async (ctx, { id }) => {
     const adminId = await requireAdmin(ctx);
-    const clean = email.trim().toLowerCase();
-    const rows = await ctx.db.query("invites").withIndex("by_email", (q) => q.eq("email", clean)).collect();
-    for (const r of rows) await ctx.db.delete(r._id);
-    if (rows.length) await logAdminAction(ctx, adminId, "invite_removed", undefined, `Removed the invite for ${clean}`);
+    const invite = await ctx.db.get(id);
+    if (!invite) return;
+    await ctx.db.delete(id);
+    await logAdminAction(ctx, adminId, "invite_removed", invite.usedBy, `${invite.usedBy ? "Removed access for" : "Cancelled the invite link for"} ${invite.label}`);
   },
 });
 
-/** Admin: the switch and everyone invited, with whether they've created their account yet. */
+/** Signed in (e.g. an account made before private mode) and opening an invite link: use it for this account. */
+export const redeem = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Please sign in.");
+    if (await hasAccess(ctx, userId)) return "already";
+    const invite = await openInvite(ctx, token);
+    if (!invite) throw new ConvexError("This invite link has already been used, has expired or isn't valid. Ask for a new one.");
+    await ctx.db.patch(invite._id, { usedBy: userId, usedAt: Date.now() });
+    return "joined";
+  },
+});
+
+/** Admin: confirm an account with an ADMIN_EMAILS address that signed up after the admin list was locked. */
+export const confirmAdmin = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const adminId = await requireAdmin(ctx);
+    const row = await accessConfig(ctx);
+    const user = await ctx.db.get(userId);
+    if (!row?.adminIds || !user?.email || !adminEmails().includes(user.email.toLowerCase())) throw new ConvexError("This account isn't waiting for admin confirmation.");
+    if (row.adminIds.includes(userId)) return;
+    await ctx.db.patch(row._id, { adminIds: [...row.adminIds, userId] });
+    await logAdminAction(ctx, adminId, "admin_confirmed", userId, `Confirmed ${user.email} as an admin`);
+  },
+});
+
+/** Admin: the switch, the invite links (with who used each) and any admin accounts waiting for confirmation. */
 export const overview = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const invites = await ctx.db.query("invites").order("desc").take(1000);
-    const rows = await Promise.all(
-      invites.map(async (i) => ({
-        email: i.email,
-        role: i.role,
-        invitedAt: new Date(i.createdAt).toISOString(),
-        joined: !!(await ctx.db.query("users").withIndex("email", (q) => q.eq("email", i.email)).first()),
-      })),
+    const row = await accessConfig(ctx);
+    const now = Date.now();
+    const invites = await Promise.all(
+      (await ctx.db.query("invites").order("desc").take(1000)).map(async (i) => {
+        const user = i.usedBy ? await ctx.db.get(i.usedBy) : null;
+        return {
+          id: i._id,
+          label: i.label,
+          role: i.role,
+          createdAt: new Date(i.createdAt).toISOString(),
+          status: i.usedBy ? ("used" as const) : i.expiresAt <= now ? ("expired" as const) : ("open" as const),
+          usedByEmail: user?.email ?? null,
+          // The link is shown only while it can still be used.
+          token: !i.usedBy && i.expiresAt > now ? i.token : null,
+        };
+      }),
     );
-    return { privateMode: await isPrivateMode(ctx), invites: rows };
-  },
-});
-
-/** "You're invited to test Kalorax" email through Resend (same key and sender as password reset). */
-export const sendInvite = internalAction({
-  args: { email: v.string() },
-  handler: async (_ctx, { email }) => {
-    const key = process.env.AUTH_RESEND_KEY;
-    if (!key) return;
-    const site = (process.env.SITE_URL ?? "https://kalorax.netlify.app").replace(/\/$/, "");
-    const link = `${site}/auth?mode=signup&email=${encodeURIComponent(email)}`;
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        signal: AbortSignal.timeout(15_000),
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: process.env.AUTH_EMAIL_FROM ?? "Kalorax <no-reply@kalorax.ng>",
-          to: [email],
-          subject: "You're invited to try Kalorax early",
-          text:
-            `You've been invited to try Kalorax before it opens to everyone.\n\n` +
-            `Create your account with this email address (${email}) here:\n${link}\n\n` +
-            `Kalorax helps you track meals, water and activity with portions that match real Nigerian plates, and get plans from verified dietitians.\n\n` +
-            `If you weren't expecting this, you can ignore it.\n\n— The Kalorax team`,
-        }),
-      });
-      if (!res.ok) console.error("invite email failed", res.status);
-    } catch (err) {
-      console.error("invite email unreachable", (err as Error).name);
-    }
+    const pendingAdmins = row?.adminIds
+      ? [...(await adminEmailAccounts(ctx)).entries()].filter(([id]) => !row.adminIds!.includes(id)).map(([id, email]) => ({ id, email }))
+      : [];
+    return { privateMode: !!row?.privateMode, adminListLocked: !!row?.adminIds, invites, pendingAdmins };
   },
 });

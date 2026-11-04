@@ -251,7 +251,8 @@ export default defineSchema({
   adminLog: defineTable({
     adminId: v.id("users"),
     action: v.union(v.literal("verification_approved"), v.literal("verification_rejected"), v.literal("payout_recorded"), v.literal("waitlist_exported"),
-      v.literal("private_mode_on"), v.literal("private_mode_off"), v.literal("invite_added"), v.literal("invite_removed")),
+      v.literal("private_mode_on"), v.literal("private_mode_off"), v.literal("invite_added"), v.literal("invite_removed"),
+      v.literal("admin_confirmed")),
     subjectId: v.optional(v.id("users")),
     detail: v.string(),
     at: v.number(),
@@ -269,18 +270,33 @@ export default defineSchema({
   /** App-wide switches set by admins. One row per key; "access" holds private mode. */
   appConfig: defineTable({
     key: v.literal("access"),
-    /** On: only admins and invited emails can create accounts or use the app; the public sees the waitlist. */
+    /** On: only confirmed admins and people with an invite link can sign up or use the app; the public sees the waitlist. */
     privateMode: v.boolean(),
+    /**
+     * Confirmed admin accounts. Unset until private mode is first turned on, when the existing ADMIN_EMAILS
+     * accounts are confirmed; after that, a new ADMIN_EMAILS account is an admin only once a confirmed admin
+     * confirms it (sign-ups aren't email-verified, so the email alone isn't proof).
+     */
+    adminIds: v.optional(v.array(v.id("users"))),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
 
-  /** Emails an admin invited to use the app while it's in private mode. */
+  /**
+   * One-time invite links for private mode (/join/<token>). The token is the secret; the label is for the
+   * admin's reference only. Using it ties the invite to the account; removing it takes access away.
+   */
   invites: defineTable({
-    email: v.string(),
+    token: v.string(),
+    label: v.string(),
     role: v.union(v.literal("member"), v.literal("student"), v.literal("dietitian")),
     invitedBy: v.id("users"),
     createdAt: v.number(),
-  }).index("by_email", ["email"]),
+    expiresAt: v.number(),
+    usedBy: v.optional(v.id("users")),
+    usedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_used_by", ["usedBy"]),
 
   waitlist: defineTable({
     email: v.string(),

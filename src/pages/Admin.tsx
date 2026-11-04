@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck, CircleX, Download, Gauge, HeartPulse, Lock, LockOpen, MessageCircle, NotebookPen, ShieldAlert, UserMinus, UserPlus, Users } from "lucide-react";
+import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck, CircleX, Copy, Download, Gauge, HeartPulse, Lock, LockOpen, MessageCircle, NotebookPen, ShieldAlert, ShieldCheck, UserMinus, UserPlus, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
@@ -337,36 +337,64 @@ const LOG_LABEL = {
   private_mode_off: { text: "Private mode off", icon: <LockOpen size={16} /> },
   invite_added: { text: "Invited", icon: <UserPlus size={16} /> },
   invite_removed: { text: "Invite removed", icon: <UserMinus size={16} /> },
+  admin_confirmed: { text: "Admin confirmed", icon: <ShieldCheck size={16} /> },
 } as const;
 
-/** Private mode switch and the invite list (team and testers who can use the app while it's private). */
+/** A new invite token: 32 random bytes from the browser's crypto, URL-safe (43 characters). */
+function newInviteToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+const inviteLink = (token: string) => `${location.origin}/join/${token}`;
+const inviteMessage = (token: string) => `You're invited to try Kalorax early! Create your account here (the link works once): ${inviteLink(token)}`;
+
+/** Copy / WhatsApp buttons for an invite link. */
+function ShareInvite({ token }: { token: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className="row" style={{ gap: "0.35rem", justifyContent: "flex-end" }}>
+      <button className="btn btn-ghost btn-small" onClick={() => void navigator.clipboard?.writeText(inviteLink(token)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })}>
+        {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy link"}
+      </button>
+      <a className="btn btn-ghost btn-small" href={`https://wa.me/?text=${encodeURIComponent(inviteMessage(token))}`} target="_blank" rel="noreferrer">
+        <MessageCircle size={15} /> WhatsApp
+      </a>
+    </span>
+  );
+}
+
+const INVITE_STATUS = { open: "Not used yet", used: "Used", expired: "Expired" } as const;
+
+/** Private mode switch, one-time invite links, and admin accounts waiting for confirmation. */
 function Access() {
   const data = useQuery(api.access.overview);
   const setPrivateMode = useMutation(api.access.setPrivateMode);
-  const invite = useMutation(api.access.invite);
+  const createInvite = useMutation(api.access.createInvite);
   const removeInvite = useMutation(api.access.removeInvite);
-  const [email, setEmail] = useState("");
+  const confirmAdmin = useMutation(api.access.confirmAdmin);
+  const [label, setLabel] = useState("");
   const [role, setRole] = useState<keyof typeof WAITLIST_ROLE>("member");
-  const [note, setNote] = useState<string | null>(null);
+  const [fresh, setFresh] = useState<{ label: string; token: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (data === undefined) return <SkeletonLines />;
 
   const toggle = (on: boolean) => {
     const ask = on
-      ? "Turn on private mode? The public will only see the waitlist, and only admins and invited emails can sign up and use the app."
+      ? "Turn on private mode? The public will only see the waitlist, and only admins and people with an invite link can sign up and use the app." +
+        (data.adminListLocked ? "" : " This also locks the admin list: admin emails that sign up later will need confirming here.")
       : "Turn off private mode? Anyone will be able to create an account and use Kalorax.";
     if (confirm(ask)) void setPrivateMode({ on });
   };
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setNote(null);
     try {
-      const res = await invite({ email, role });
-      setNote(res.alreadyInvited ? `${email.trim()} was already invited.` : res.emailed ? `Invited ${email.trim()} and sent them an invite email.` : `Invited ${email.trim()}. Email isn't set up, so tell them to sign up at kalorax.netlify.app with this address.`);
-      setEmail("");
+      const token = newInviteToken();
+      await createInvite({ token, label, role });
+      setFresh({ label: label.trim(), token });
+      setLabel("");
     } catch (err) {
-      setError(err instanceof Error ? err.message.replace(/^.*ConvexError: /, "").replace(/\s*Called by client$/, "") : "Couldn't invite.");
+      setError(err instanceof Error ? err.message.replace(/^.*ConvexError: /, "").replace(/\s*Called by client$/, "") : "Couldn't create the link.");
     }
   };
 
@@ -377,42 +405,67 @@ function Access() {
           <h2 className="row">{data.privateMode ? <Lock size={18} /> : <LockOpen size={18} />} {data.privateMode ? "Private mode is on" : "Private mode is off"}</h2>
           <p className="small muted">
             {data.privateMode
-              ? "The public sees only the waitlist. Only admins and the people below can create an account or use the app; anyone else who signs in sees a \"private testing\" screen."
+              ? "The public sees only the waitlist. Only admins and people who used an invite link can create an account or use the app; anyone else who signs in sees a \"private testing\" screen."
               : "Anyone can create an account and use Kalorax. Turn this on to show the public only the waitlist while you test with your team."}
           </p>
         </div>
         <Switch label="Private mode" checked={data.privateMode} onChange={toggle} />
       </div>
 
+      {data.pendingAdmins.length > 0 && (
+        <div className="card card-warm">
+          <h2 className="row"><ShieldAlert size={18} /> Admin accounts waiting for confirmation</h2>
+          <p className="small muted">These accounts use an address in ADMIN_EMAILS but signed up after the admin list was locked. Sign-ups aren't email-verified, so confirm only if you know the person really owns the address.</p>
+          {data.pendingAdmins.map((a) => (
+            <div key={a.id} className="row" style={{ justifyContent: "space-between" }}>
+              <strong>{a.email}</strong>
+              <button className="btn btn-secondary btn-small" onClick={() => { if (confirm(`Make ${a.email} an admin? They'll see everything in the Admin portal.`)) void confirmAdmin({ userId: a.id }); }}>Confirm as admin</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <h2 className="section-title">Invite your team and testers</h2>
-      <form className="row admin-toolbar" onSubmit={add}>
-        <input type="email" required placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Email to invite" className="grow" />
+      <p className="small muted">Each invite is a one-time link that works for 14 days. Send it yourself (WhatsApp, text or chat). Whoever opens it can create an account, or let an account they already have in, so send each link only to the person it's for.</p>
+      <form className="access-form" onSubmit={add}>
+        <input required placeholder="Who it's for (name or email)" value={label} onChange={(e) => setLabel(e.target.value)} aria-label="Who the invite is for" maxLength={120} />
         <select value={role} onChange={(e) => setRole(e.target.value as keyof typeof WAITLIST_ROLE)} aria-label="Role">
-          {Object.entries(WAITLIST_ROLE).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          {Object.entries(WAITLIST_ROLE).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
-        <button className="btn btn-primary"><UserPlus size={16} /> Invite</button>
+        <button className="btn btn-primary"><UserPlus size={16} /> Create invite link</button>
       </form>
-      {note && <p className="small" role="status">{note}</p>}
       {error && <p className="small error" role="alert">{error}</p>}
-      <p className="small muted">Admins (the emails in ADMIN_EMAILS) always have access. You can also invite people from the Waitlist tab. Invited people sign up with exactly this email.</p>
+      {fresh && (
+        <div className="card card-warm" role="status">
+          <p className="small"><strong>Invite link for {fresh.label}</strong>, ready to send:</p>
+          <p className="small invite-link">{inviteLink(fresh.token)}</p>
+          <ShareInvite token={fresh.token} />
+        </div>
+      )}
 
       {data.invites.length === 0 ? (
-        <div className="card empty-state"><h2>No one invited yet</h2><p className="muted">Invited people can use the app while private mode is on.</p></div>
+        <div className="card empty-state"><h2>No invite links yet</h2><p className="muted">People who use one can use the app while private mode is on.</p></div>
       ) : (
         <div className="card table-wrap">
           <table className="table data-table">
-            <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Invited</th><th><span className="sr-only">Remove</span></th></tr></thead>
+            <thead><tr><th>For</th><th>Role</th><th>Status</th><th>Created</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
               {data.invites.map((i) => (
-                <tr key={i.email}>
-                  <td>{i.email}</td>
+                <tr key={i.id}>
+                  <td>{i.label}</td>
                   <td className="small">{WAITLIST_ROLE[i.role]}</td>
-                  <td className="small">{i.joined ? <span className="tag tag-breakfast">Has an account</span> : <span className="muted">Not signed up yet</span>}</td>
-                  <td className="small muted">{ago(i.invitedAt)}</td>
+                  <td className="small">{i.status === "used" ? <span className="tag tag-breakfast">Used · {i.usedByEmail ?? "account"}</span> : <span className="muted">{INVITE_STATUS[i.status]}</span>}</td>
+                  <td className="small muted">{ago(i.createdAt)}</td>
                   <td className="num">
-                    <button className="btn btn-ghost btn-small" onClick={() => { if (confirm(`Remove the invite for ${i.email}? While private mode is on, they won't be able to use the app.`)) void removeInvite({ email: i.email }); }}>
-                      <UserMinus size={15} /> Remove
-                    </button>
+                    <span className="row" style={{ gap: "0.35rem", justifyContent: "flex-end" }}>
+                      {i.token && <ShareInvite token={i.token} />}
+                      <button className="btn btn-ghost btn-small" onClick={() => {
+                        const msg = i.status === "used" ? `Remove access for ${i.usedByEmail ?? i.label}? While private mode is on, they won't be able to use the app.` : `Cancel the invite link for ${i.label}?`;
+                        if (confirm(msg)) void removeInvite({ id: i.id });
+                      }}>
+                        <UserMinus size={15} /> {i.status === "used" ? "Remove access" : "Cancel"}
+                      </button>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -437,8 +490,14 @@ function Waitlist() {
   const rows = useQuery(api.waitlist.list);
   const access = useQuery(api.access.overview);
   const recordExport = useMutation(api.waitlist.recordExport);
-  const invite = useMutation(api.access.invite);
-  const invited = new Set(access?.invites.map((i) => i.email) ?? []);
+  const createInvite = useMutation(api.access.createInvite);
+  const invites = new Map((access?.invites ?? []).filter((i) => i.status !== "expired").map((i) => [i.label.toLowerCase(), i]));
+  const [made, setMade] = useState<Record<string, string>>({});
+  const inviteFromWaitlist = async (email: string, role: keyof typeof WAITLIST_ROLE) => {
+    const token = newInviteToken();
+    await createInvite({ token, label: email, role });
+    setMade((m) => ({ ...m, [email]: token }));
+  };
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   if (rows === undefined) return <SkeletonLines />;
@@ -482,10 +541,14 @@ function Waitlist() {
                   <td className="small">{WAITLIST_ROLE[r.role]}</td>
                   <td className="small muted" title={new Date(r.joinedAt).toLocaleString("en-NG")}>{ago(r.joinedAt)}</td>
                   <td className="num">
-                    {invited.has(r.email) ? (
-                      <span className="small muted"><Check size={14} aria-hidden /> Invited</span>
+                    {made[r.email] ? (
+                      <ShareInvite token={made[r.email]} />
+                    ) : invites.get(r.email)?.status === "used" ? (
+                      <span className="small muted"><Check size={14} aria-hidden /> Joined</span>
+                    ) : invites.get(r.email)?.token ? (
+                      <ShareInvite token={invites.get(r.email)!.token!} />
                     ) : (
-                      <button className="btn btn-ghost btn-small" onClick={() => void invite({ email: r.email, role: r.role })}><UserPlus size={15} /> Invite</button>
+                      <button className="btn btn-ghost btn-small" onClick={() => void inviteFromWaitlist(r.email, r.role)}><UserPlus size={15} /> Invite</button>
                     )}
                   </td>
                 </tr>
@@ -505,7 +568,7 @@ function AuditLog() {
   if (rows === undefined) return <SkeletonLines />;
   return (
     <section>
-      <p className="small muted">Every approval, rejection, payout, waitlist download, invite and private-mode change, with the admin who did it. Entries can't be changed or removed from the app.</p>
+      <p className="small muted">Every approval, rejection, payout, waitlist download, invite, admin confirmation and private-mode change, with the admin who did it. Entries can't be changed or removed from the app.</p>
       {rows.length === 0 ? (
         <div className="card empty-state"><h2>No admin actions yet</h2><p className="muted">They'll be listed here as admins approve, reject and pay out.</p></div>
       ) : (

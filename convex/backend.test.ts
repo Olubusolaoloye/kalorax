@@ -1035,77 +1035,93 @@ describe("waitlist", () => {
 });
 
 describe("private mode", () => {
-  it("only admins can switch it, and each change is in the audit log", async () => {
+  const token = (n: number) => `tok_${String(n).padStart(39, "0")}`; // 43 URL-safe characters
+  const signUp = async (t: ReturnType<typeof convexTest>, email: string, inviteToken?: string) => {
+    const { createOrUpdateUser } = await import("./auth");
+    return t.run((ctx) => createOrUpdateUser(ctx, { existingUserId: null, profile: { email, ...(inviteToken ? { inviteToken } : {}) } }));
+  };
+
+  it("only admins can switch it or make invite links, and each change is in the audit log", async () => {
     const t = convexTest(schema, modules);
     expect(await t.query(api.access.status, {})).toEqual({ privateMode: false });
     const member = await signedIn(t, "ada@example.com");
     await expect(member.as.mutation(api.access.setPrivateMode, { on: true })).rejects.toThrow(/Admins only/);
-    await expect(member.as.mutation(api.access.invite, { email: "x@example.com", role: "member" })).rejects.toThrow(/Admins only/);
+    await expect(member.as.mutation(api.access.createInvite, { token: token(1), label: "Me", role: "member" })).rejects.toThrow(/Admins only/);
     const admin = await signedIn(t, "admin@kalorax.ng");
     await admin.as.mutation(api.access.setPrivateMode, { on: true });
     expect(await t.query(api.access.status, {})).toEqual({ privateMode: true });
     await admin.as.mutation(api.access.setPrivateMode, { on: false });
     expect((await admin.as.query(api.admin.log, {})).map((r) => r.action)).toEqual(["private_mode_off", "private_mode_on"]);
+    await expect(admin.as.mutation(api.access.createInvite, { token: "short", label: "X", role: "member" })).rejects.toThrow(/Invalid invite token/);
   });
 
-  it("lets only admins and invited emails create accounts while it's on", async () => {
-    const { createOrUpdateUser } = await import("./auth");
+  it("needs an unused, unexpired invite link to create an account: knowing an email isn't enough", async () => {
     const t = convexTest(schema, modules);
-    const signUp = (email: string) => t.run((ctx) => createOrUpdateUser(ctx, { existingUserId: null, profile: { email } }));
-    // Off: anyone.
-    await signUp("early@example.com");
+    await signUp(t, "early@example.com"); // private mode off: anyone
     const admin = await signedIn(t, "admin@kalorax.ng");
     await admin.as.mutation(api.access.setPrivateMode, { on: true });
-    await expect(signUp("stranger@example.com")).rejects.toThrow(/invite-only/);
-    await signUp("Admin@Kalorax.ng");
-    expect(await admin.as.mutation(api.access.invite, { email: " Tester@Example.com ", role: "dietitian" })).toEqual({ alreadyInvited: false, emailed: false });
-    expect(await admin.as.mutation(api.access.invite, { email: "tester@example.com", role: "dietitian" })).toMatchObject({ alreadyInvited: true });
-    await signUp("tester@example.com");
+    await admin.as.mutation(api.access.createInvite, { token: token(1), label: "tester@company.ng", role: "dietitian" });
+
+    // The attack from the security review: an outsider uses the invited person's email, without the link.
+    await expect(signUp(t, "tester@company.ng")).rejects.toThrow(/invite-only/);
+    await expect(signUp(t, "stranger@example.com", token(2))).rejects.toThrow(/invite-only/);
+    await signUp(t, "tester@company.ng", token(1));
+    // One use only.
+    await expect(signUp(t, "someone@else.com", token(1))).rejects.toThrow(/invite-only/);
     const o = await admin.as.query(api.access.overview, {});
-    expect(o).toMatchObject({ privateMode: true, invites: [{ email: "tester@example.com", role: "dietitian", joined: true }] });
+    expect(o.invites).toEqual([expect.objectContaining({ label: "tester@company.ng", role: "dietitian", status: "used", usedByEmail: "tester@company.ng", token: null })]);
+
+    // Expired links stop working.
+    await admin.as.mutation(api.access.createInvite, { token: token(3), label: "Late", role: "member" });
+    await t.run(async (ctx) => {
+      const inv = await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token(3))).unique();
+      await ctx.db.patch(inv!._id, { expiresAt: Date.now() - 1 });
+    });
+    await expect(signUp(t, "late@example.com", token(3))).rejects.toThrow(/invite-only/);
   });
 
-  it("locks out signed-in people who aren't invited, and lets them back in when invited", async () => {
+  it("locks out signed-in people without an invite; a link lets an existing account in, and removing it locks them out again", async () => {
     const t = convexTest(schema, modules);
     const ada = await signedIn(t, "ada@example.com");
     await ada.as.mutation(api.profile.create, { ...PROFILE, role: "consumer", weightKg: 70 });
     const admin = await signedIn(t, "admin@kalorax.ng");
     await admin.as.mutation(api.access.setPrivateMode, { on: true });
 
-    const locked = (await ada.as.query(api.me.snapshot, {}))!;
-    expect(locked).toMatchObject({ locked: true, email: "ada@example.com", profile: null, weights: [] });
+    expect(await ada.as.query(api.me.snapshot, {})).toMatchObject({ locked: true, email: "ada@example.com", profile: null, weights: [] });
     expect(await ada.as.query(api.me.history, { from: "2026-01-01", to: "2026-01-31" })).toBeNull();
     await expect(ada.as.mutation(api.data.addWater, { date: "2026-01-01", ml: 250 })).rejects.toThrow(/invite-only/);
-    // Admins are never locked out.
+    await expect(ada.as.mutation(api.access.redeem, { token: token(9) })).rejects.toThrow(/isn't valid/);
     expect((await admin.as.query(api.me.snapshot, {}))!.locked).toBe(false);
 
-    await admin.as.mutation(api.access.invite, { email: "ada@example.com", role: "member" });
-    const open = (await ada.as.query(api.me.snapshot, {}))!;
-    expect(open).toMatchObject({ locked: false, profile: { name: "Adaeze" } });
-    expect(open.weights).toHaveLength(1);
+    await admin.as.mutation(api.access.createInvite, { token: token(4), label: "Ada", role: "member" });
+    expect(await ada.as.mutation(api.access.redeem, { token: token(4) })).toBe("joined");
+    expect(await ada.as.query(api.me.snapshot, {})).toMatchObject({ locked: false, profile: { name: "Adaeze" } });
+    expect(await ada.as.mutation(api.access.redeem, { token: token(4) })).toBe("already");
 
-    await admin.as.mutation(api.access.removeInvite, { email: "ada@example.com" });
+    const [inv] = (await admin.as.query(api.access.overview, {})).invites;
+    await admin.as.mutation(api.access.removeInvite, { id: inv.id });
     expect((await ada.as.query(api.me.snapshot, {}))!.locked).toBe(true);
     expect((await admin.as.query(api.admin.log, {})).map((r) => r.action)).toEqual(["invite_removed", "invite_added", "private_mode_on"]);
   });
 
-  it("emails an invite when email is set up", async () => {
-    vi.useFakeTimers();
-    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
-    vi.stubEnv("SITE_URL", "https://kalorax.netlify.app");
-    const sent: Array<{ to: string[]; subject: string; text: string }> = [];
-    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => { sent.push(JSON.parse(init.body)); return new Response("{}"); }));
-    try {
-      const t = convexTest(schema, modules);
-      const admin = await signedIn(t, "admin@kalorax.ng");
-      expect(await admin.as.mutation(api.access.invite, { email: "tester@example.com", role: "member" })).toMatchObject({ emailed: true });
-      await t.finishAllScheduledFunctions(vi.runAllTimers);
-      expect(sent).toHaveLength(1);
-      expect(sent[0]).toMatchObject({ to: ["tester@example.com"], subject: "You're invited to try Kalorax early" });
-      expect(sent[0].text).toContain("https://kalorax.netlify.app/auth?mode=signup&email=tester%40example.com");
-    } finally {
-      vi.unstubAllGlobals();
-      vi.useRealTimers();
-    }
+  it("locks the admin list: a later account with an ADMIN_EMAILS address isn't an admin until a confirmed admin says so", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "admin@kalorax.ng, cofounder@kalorax.ng");
+    const t = convexTest(schema, modules);
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    await admin.as.mutation(api.access.setPrivateMode, { on: true });
+    // Someone signs up with the co-founder's address before they do (with a stolen invite link, or after private mode is off).
+    await admin.as.mutation(api.access.createInvite, { token: token(5), label: "Visitor", role: "member" });
+    const impostorId = await signUp(t, "cofounder@kalorax.ng", token(5));
+    const impostor = t.withIdentity({ subject: `${impostorId}|${await t.run((ctx) => ctx.db.insert("authSessions", { userId: impostorId, expirationTime: Date.now() + 1e9 }))}` });
+    await expect(impostor.query(api.waitlist.list, {})).rejects.toThrow(/Admins only/);
+    expect((await impostor.query(api.me.snapshot, {}))!.isAdmin).toBe(false);
+
+    expect((await admin.as.query(api.access.overview, {})).pendingAdmins).toEqual([{ id: impostorId, email: "cofounder@kalorax.ng" }]);
+    await expect(impostor.mutation(api.access.confirmAdmin, { userId: impostorId })).rejects.toThrow(/Admins only/);
+    await admin.as.mutation(api.access.confirmAdmin, { userId: impostorId });
+    expect((await impostor.query(api.me.snapshot, {}))!.isAdmin).toBe(true);
+    // Turning private mode off keeps the admin list locked.
+    await admin.as.mutation(api.access.setPrivateMode, { on: false });
+    expect((await admin.as.query(api.access.overview, {})).adminListLocked).toBe(true);
   });
 });
