@@ -68,7 +68,7 @@ Create an account with the email you put in `ADMIN_EMAILS`, and the **Verificati
 ## Going live on Netlify
 
 1. In the Convex dashboard, open your project → **Production** → **Settings** → generate a **Production deploy key**.
-2. Set up auth keys for production: `npx @convex-dev/auth --prod` (use `https://nutrintel.netlify.app` as the site URL), then
+2. Set up auth keys for production: `npx @convex-dev/auth --prod` (use `https://kalorax.netlify.app` as the site URL), then
    `npx convex env set --prod ADMIN_EMAILS "you@example.com"`.
 3. In Netlify → **kalorax** → **Project configuration → Environment variables**, add `CONVEX_DEPLOY_KEY` with that key.
 4. Redeploy. The build (`npm run build:ci`) deploys the Convex functions, sets `VITE_CONVEX_URL` automatically, and builds the app in cloud mode.
