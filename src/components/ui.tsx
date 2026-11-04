@@ -1,5 +1,5 @@
 import { Droplet, Flame, Lock, Search, Wheat, Beef } from "lucide-react";
-import { memo, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { photoFor, photoSources } from "../data/photos";
 import { Link } from "react-router-dom";
 import { fmt } from "../state/derived";
@@ -10,6 +10,13 @@ export function Ring({ value, max, label, sub }: { value: number; max: number; l
   const c = 2 * Math.PI * r;
   const pct = max > 0 ? Math.min(value / max, 1) : 0;
   const over = value > max;
+  // Start empty and sweep to the value once the ring is on screen (the CSS transition does the motion).
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => (second = requestAnimationFrame(() => setDrawn(true))));
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, []);
   return (
     <div className="ring" role="img" aria-label={`${label}. ${sub}`}>
       <svg viewBox="0 0 120 120" width="150" height="150">
@@ -19,7 +26,7 @@ export function Ring({ value, max, label, sub }: { value: number; max: number; l
           cy="60"
           r={r}
           className={`ring-value${over ? " over" : ""}`}
-          strokeDasharray={`${c * pct} ${c}`}
+          strokeDasharray={`${c * (drawn ? pct : 0)} ${c}`}
           transform="rotate(-90 60 60)"
         />
       </svg>
