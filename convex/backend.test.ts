@@ -187,8 +187,8 @@ describe("import, deletion and waitlist", () => {
 
   it("adds each email to the waitlist once", async () => {
     const t = convexTest(schema, modules);
-    expect(await t.mutation(api.waitlist.join, { email: "Folake@Example.com ", role: "dietitian" })).toEqual({ alreadyJoined: false });
-    expect(await t.mutation(api.waitlist.join, { email: "folake@example.com", role: "dietitian" })).toEqual({ alreadyJoined: true });
+    expect(await t.mutation(api.waitlist.join, { email: "Folake@Example.com ", role: "dietitian" })).toEqual({ alreadyJoined: false, emailed: false });
+    expect(await t.mutation(api.waitlist.join, { email: "folake@example.com", role: "dietitian" })).toEqual({ alreadyJoined: true, emailed: false });
     await expect(t.mutation(api.waitlist.join, { email: "not-an-email", role: "member" })).rejects.toThrow(/valid email/);
     expect(await t.run((ctx) => ctx.db.query("waitlist").collect())).toHaveLength(1);
   });
@@ -987,5 +987,49 @@ describe("real-user speed", () => {
     const s = await admin.as.query(api.vitals.summary, {});
     expect(s.reports).toBe(4);
     expect(s.metrics.find((m) => m.metric === "LCP")).toMatchObject({ count: 4, p75: 2000, p75Mobile: 2000, rating: "good", goodShare: 0.75 });
+  });
+});
+
+describe("waitlist", () => {
+  it("is visible to admins only, and a download is noted in the audit log", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(api.waitlist.join, { email: "funke@clinic.ng", role: "dietitian" });
+    await t.mutation(api.waitlist.join, { email: "ada@example.com", role: "member" });
+    const member = await signedIn(t, "bob@example.com");
+    await expect(member.as.query(api.waitlist.list, {})).rejects.toThrow(/Admins only/);
+    await expect(member.as.mutation(api.waitlist.recordExport, { count: 2 })).rejects.toThrow(/Admins only/);
+
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    const rows = await admin.as.query(api.waitlist.list, {});
+    expect(rows.map((r) => [r.email, r.role])).toEqual([["ada@example.com", "member"], ["funke@clinic.ng", "dietitian"]]);
+    await admin.as.mutation(api.waitlist.recordExport, { count: rows.length });
+    expect((await admin.as.query(api.admin.log, {}))[0]).toMatchObject({ action: "waitlist_exported", detail: "Downloaded the waitlist (2 emails) as CSV" });
+  });
+
+  it("emails new joiners once (when email is set up), and caps welcome emails per hour", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    const sent: Array<{ to: string[]; subject: string; text: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return new Response("{}", { status: 200 });
+    }));
+    try {
+      const t = convexTest(schema, modules);
+      expect(await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" })).toEqual({ alreadyJoined: false, emailed: true });
+      await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ to: ["tunde@unn.edu.ng"], subject: "You're on the Kalorax waitlist" });
+      expect(sent[0].text).toMatch(/student account verified/);
+
+      // 60 more in the same hour: the 61st join of the hour gets no email.
+      for (let i = 0; i < 60; i++) await t.mutation(api.waitlist.join, { email: `p${i}@example.com`, role: "member" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(60);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });

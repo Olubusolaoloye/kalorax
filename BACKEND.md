@@ -32,7 +32,7 @@ Kalorax runs in two modes:
 | `data.ts` | Diary, water, weight, notes, plan, grocery, calendar and exercise mutations; delete my data / account |
 | `verification.ts` | Upload a document, submit for review, admin review queue and approve/reject |
 | `importLocal.ts` | One-time import of data saved on a device before accounts |
-| `waitlist.ts` | Public landing-page waitlist |
+| `waitlist.ts` | Public landing-page waitlist (`join`, one entry per email). New joiners get a "you're on the list" email through Resend when `AUTH_RESEND_KEY` is set, at most 60 an hour. Admins see everyone under **Admin → Waitlist** (`list`) and can download a CSV. Each download is noted in the audit log (`recordExport`) |
 | `helpers.ts`, `validators.ts` | Auth checks, ownership checks, input validation, `logAdminAction` (writes the admin audit log in the same transaction as the action) |
 | `backend.test.ts` | Tests (run with `npm test`) |
 
@@ -78,6 +78,8 @@ Create an account with the email you put in `ADMIN_EMAILS`, and the **Verificati
 
 1. Create a free account at https://resend.com, verify your sending domain (e.g. `kalorax.ng`) and create an API key.
 2. `npx convex env set AUTH_RESEND_KEY re_xxx` and `npx convex env set AUTH_EMAIL_FROM "Kalorax <no-reply@kalorax.ng>"` (add `--prod` for production).
+
+The same key and sender also send the waitlist welcome email.
 
 Without these, "Forgot password?" tells people reset isn't available yet.
 

@@ -250,7 +250,7 @@ export default defineSchema({
   /** Every admin action (approvals, rejections, payouts): who did what, to whom, and when. Never edited or deleted by the app. */
   adminLog: defineTable({
     adminId: v.id("users"),
-    action: v.union(v.literal("verification_approved"), v.literal("verification_rejected"), v.literal("payout_recorded")),
+    action: v.union(v.literal("verification_approved"), v.literal("verification_rejected"), v.literal("payout_recorded"), v.literal("waitlist_exported")),
     subjectId: v.optional(v.id("users")),
     detail: v.string(),
     at: v.number(),

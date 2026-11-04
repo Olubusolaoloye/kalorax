@@ -18,7 +18,7 @@ export function WaitlistForm() {
     setState("busy");
     try {
       const res = await join({ email, role });
-      setMessage(res.alreadyJoined ? "You're already on the list — we'll be in touch." : "You're on the list! We'll email you at launch.");
+      setMessage(res.alreadyJoined ? "You're already on the list — we'll be in touch." : res.emailed ? "You're on the list! Look out for a welcome email." : "You're on the list! We'll email you at launch.");
       setState("done");
     } catch (err) {
       setMessage(err instanceof Error ? err.message.replace(/^.*ConvexError: /, "").replace(/\s*Called by client$/, "") : "Something went wrong.");

@@ -229,6 +229,18 @@ export function Landing() {
         <div><strong>{RECIPES.length}</strong><span>recipes you can plan and shop for</span></div>
       </section>
 
+      {/* Waitlist: right after the hero, where people decide whether to stay */}
+      {mode === "cloud" && (
+        <section className="lp-join" id="waitlist" data-reveal>
+          <div>
+            <span className="lp-eyebrow">Early access</span>
+            <h2>Be first in line</h2>
+            <p>Get launch news, early features and, for dietitians and students, first access to verification and paid programmes.</p>
+          </div>
+          <WaitlistForm />
+        </section>
+      )}
+
       {/* Dish ribbon */}
       <section className="lp-ribbon" aria-label="Some of the dishes in Kalorax">
         <div className="lp-ribbon-track">
@@ -503,12 +515,6 @@ export function Landing() {
         <h2>Small steps. <em>Real change.</em></h2>
         <p>Log one meal or one walk today. It takes less than a minute.</p>
         <Link to="/start" className="lp-btn lp-btn-lime lp-btn-lg">Start free <ArrowRight size={18} aria-hidden /></Link>
-        {mode === "cloud" && (
-          <div className="lp-waitlist-wrap">
-            <p className="small">Dietitian, student or just curious? Get launch news and early access.</p>
-            <WaitlistForm />
-          </div>
-        )}
       </section>
 
       <footer className="lp-footer">

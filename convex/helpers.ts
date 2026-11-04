@@ -56,7 +56,7 @@ export async function ownRow<T extends "diary" | "events" | "exercises">(ctx: Mu
   return row;
 }
 
-export type AdminAction = "verification_approved" | "verification_rejected" | "payout_recorded";
+export type AdminAction = "verification_approved" | "verification_rejected" | "payout_recorded" | "waitlist_exported";
 
 /** Records an admin action in the audit log. Call it in the same mutation as the action, so both happen or neither does. */
 export async function logAdminAction(ctx: MutationCtx, adminId: Id<"users">, action: AdminAction, subjectId: Id<"users"> | undefined, detail: string) {

@@ -1,11 +1,12 @@
-import { useQuery } from "convex/react";
-import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, CircleCheck, CircleX, Gauge, HeartPulse, MessageCircle, NotebookPen, ShieldAlert, UserPlus, Users } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, CircleCheck, CircleX, Download, Gauge, HeartPulse, MessageCircle, NotebookPen, ShieldAlert, UserPlus, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { PageHeader, SearchBox, SkeletonLines } from "../components/ui";
 import { fmt } from "../state/derived";
 import { Payouts, VerificationQueue } from "./AdminReview";
+import { downloadCsv, toCsv } from "../lib/csv";
 import { useDebounced } from "../lib/useDebounced";
 
 const TABS = [
@@ -14,6 +15,7 @@ const TABS = [
   { id: "activity", label: "Activity" },
   { id: "verification", label: "Verification" },
   { id: "payouts", label: "Payouts" },
+  { id: "waitlist", label: "Waitlist" },
   { id: "log", label: "Audit log" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
@@ -52,6 +54,7 @@ export function Admin() {
       {tab === "activity" && <Feed />}
       {tab === "verification" && <VerificationQueue />}
       {tab === "payouts" && <Payouts />}
+      {tab === "waitlist" && <Waitlist />}
       {tab === "log" && <AuditLog />}
     </div>
   );
@@ -327,15 +330,81 @@ const LOG_LABEL = {
   verification_approved: { text: "Approved", icon: <CircleCheck size={16} /> },
   verification_rejected: { text: "Rejected", icon: <CircleX size={16} /> },
   payout_recorded: { text: "Payout", icon: <Banknote size={16} /> },
+  waitlist_exported: { text: "Waitlist download", icon: <Download size={16} /> },
 } as const;
 
 /** Every admin action, newest first. Entries can't be edited or deleted from the app. */
+const WAITLIST_ROLE = { member: "Member", student: "Student", dietitian: "Dietitian" } as const;
+
+/** The waitlist as CSV. A cell starting with = + - @ gets a leading ' so spreadsheets don't run it as a formula. */
+export function waitlistCsv(rows: Array<{ email: string; role: keyof typeof WAITLIST_ROLE; joinedAt: string }>) {
+  const safe = (v: string) => (/^[=+\-@]/.test(v) ? `'${v}` : v);
+  return toCsv([["Email", "Role", "Joined"], ...rows.map((r) => [safe(r.email), WAITLIST_ROLE[r.role], r.joinedAt.slice(0, 10)])]);
+}
+
+/** Everyone who joined the waitlist from the landing page, with a CSV download (logged in the audit log). */
+function Waitlist() {
+  const rows = useQuery(api.waitlist.list);
+  const recordExport = useMutation(api.waitlist.recordExport);
+  const [search, setSearch] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (rows === undefined) return <SkeletonLines />;
+  const q = search.trim().toLowerCase();
+  const shown = q ? rows.filter((r) => r.email.includes(q)) : rows;
+  const count = (role: keyof typeof WAITLIST_ROLE) => rows.filter((r) => r.role === role).length;
+
+  const download = async () => {
+    setBusy(true);
+    try {
+      await recordExport({ count: rows.length });
+      downloadCsv(`kalorax-waitlist-${new Date().toISOString().slice(0, 10)}.csv`, waitlistCsv(rows));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <div className="kpi-row">
+        <Kpi icon={<Users size={18} />} label="On the waitlist" value={fmt(rows.length)} />
+        <Kpi icon={<UserPlus size={18} />} label="Members" value={fmt(count("member"))} />
+        <Kpi icon={<BadgeCheck size={18} />} label="Students" value={fmt(count("student"))} />
+        <Kpi icon={<HeartPulse size={18} />} label="Dietitians" value={fmt(count("dietitian"))} />
+      </div>
+      <div className="row admin-toolbar">
+        <SearchBox value={search} onChange={setSearch} placeholder="Search by email" />
+        <button className="btn btn-secondary" onClick={download} disabled={busy || rows.length === 0}><Download size={16} /> Download CSV</button>
+      </div>
+      <p className="small muted">People who joined from the landing page. These emails are personal data: use them only for Kalorax launch news, and each download is noted in the audit log.</p>
+      {rows.length === 0 ? (
+        <div className="card empty-state"><h2>No one on the waitlist yet</h2><p className="muted">Sign-ups from the landing page will appear here.</p></div>
+      ) : (
+        <div className="card table-wrap">
+          <table className="table data-table">
+            <thead><tr><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.email}</td>
+                  <td className="small">{WAITLIST_ROLE[r.role]}</td>
+                  <td className="small muted" title={new Date(r.joinedAt).toLocaleString("en-NG")}>{ago(r.joinedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {shown.length === 0 && <p className="small muted center">No emails match "{search}".</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function AuditLog() {
   const rows = useQuery(api.admin.log);
   if (rows === undefined) return <SkeletonLines />;
   return (
     <section>
-      <p className="small muted">Every approval, rejection and payout, with the admin who did it. Entries can't be changed or removed from the app.</p>
+      <p className="small muted">Every approval, rejection, payout and waitlist download, with the admin who did it. Entries can't be changed or removed from the app.</p>
       {rows.length === 0 ? (
         <div className="card empty-state"><h2>No admin actions yet</h2><p className="muted">They'll be listed here as admins approve, reject and pay out.</p></div>
       ) : (
