@@ -885,6 +885,22 @@ a.food-row:hover { transform: translateY(-2px); box-shadow: var(--shadow); borde
   body.chat-open .chat-thread > form, body.chat-open .chat-blocked { flex-shrink: 0; padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); background: var(--surface); }
 }
 
+/* Tablet and desktop: an open chat fills the viewport height, so only the messages scroll
+   and the input box stays pinned at the bottom instead of pushing the page down. */
+@media (min-width: 768px) {
+  .chat-layout.has-active .chat-thread {
+    display: flex; flex-direction: column; align-self: start;
+    position: sticky; top: 1.5rem;
+    height: min(calc(100dvh - 10rem), 860px); min-height: 22rem;
+  }
+  .chat-layout.has-active .chat-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .chat-layout.has-active .chat-thread > form,
+  .chat-layout.has-active .chat-blocked,
+  .chat-layout.has-active .coach-remaining,
+  .chat-layout.has-active .chat-error,
+  .chat-layout.has-active .chat-banner { flex-shrink: 0; }
+}
+
 /* Insights */
 .insights-hero {
   position: relative; overflow: hidden; text-align: center; padding: 2rem 1.25rem 1.25rem; margin: 0.75rem 0 1.25rem; border-radius: var(--radius-xl);
