@@ -29,7 +29,7 @@ function ago(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Admin portal: everything happening in Nutrintel, plus verification and payouts. Admins are listed in ADMIN_EMAILS. */
+/** Admin portal: everything happening in Kalorax, plus verification and payouts. Admins are listed in ADMIN_EMAILS. */
 export function Admin() {
   const [params, setParams] = useSearchParams();
   const tab = (TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "overview") as Tab;
@@ -79,7 +79,7 @@ function Overview({ o, onTab }: { o: OverviewData; onTab: (t: Tab) => void }) {
         <Kpi icon={<Users size={18} />} label="Accounts" value={fmt(o.people.accounts)} sub={`${fmt(o.people.newThisWeek)} new this week`} onClick={() => onTab("people")} />
         <Kpi icon={<Activity size={18} />} label="Active today" value={fmt(o.active.today)} sub={`${fmt(o.active.week)} this week · ${fmt(o.active.month)} this month`} />
         <Kpi icon={<BadgeCheck size={18} />} label="Waiting for verification" value={fmt(o.queue.pendingVerifications)} sub="Students and dietitians" onClick={() => onTab("verification")} />
-        <Kpi icon={<Banknote size={18} />} label="Programme revenue" value={naira(p.grossNaira)} sub={`${naira(p.feesNaira)} Nutrintel fees`} onClick={() => onTab("payouts")} />
+        <Kpi icon={<Banknote size={18} />} label="Programme revenue" value={naira(p.grossNaira)} sub={`${naira(p.feesNaira)} Kalorax fees`} onClick={() => onTab("payouts")} />
       </div>
 
       <div className="admin-charts">
@@ -112,7 +112,7 @@ function Overview({ o, onTab }: { o: OverviewData; onTab: (t: Tab) => void }) {
           <Stat label="Completed" value={p.completed} />
           <Stat label="Cancelled" value={p.cancelled} />
           <Stat label="Paid by members" text={naira(p.grossNaira)} />
-          <Stat label="Nutrintel fees" text={naira(p.feesNaira)} />
+          <Stat label="Kalorax fees" text={naira(p.feesNaira)} />
           <Stat label="Owed to dietitians" text={naira(p.owedToDietitiansNaira)} warn={p.owedToDietitiansNaira > 0} />
           {p.demo > 0 && <Stat label="Demo enrolments (not counted)" value={p.demo} warn />}
         </Panel>

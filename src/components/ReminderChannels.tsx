@@ -23,10 +23,10 @@ function PushBlocked() {
   if (isIos() && !isInstalled())
     return (
       <p className="small muted">
-        On iPhone, add Nutrintel to your Home Screen first: tap <strong>Share</strong> → <strong>Add to Home Screen</strong>, then open it from there.
+        On iPhone, add Kalorax to your Home Screen first: tap <strong>Share</strong> → <strong>Add to Home Screen</strong>, then open it from there.
       </p>
     );
-  if (Notification.permission === "denied") return <p className="small error">Notifications are blocked for Nutrintel. Allow them in your browser's site settings.</p>;
+  if (Notification.permission === "denied") return <p className="small error">Notifications are blocked for Kalorax. Allow them in your browser's site settings.</p>;
   return null;
 }
 
@@ -96,9 +96,9 @@ export function CloudPushCard({ save }: { save: Save }) {
   return (
     <Card className="channel-card">
       <ChannelHead icon={<BellRing size={20} />} title="Push notifications" status={status} />
-      <p className="small muted">Reminders pop up on your phone or computer, even when Nutrintel is closed.</p>
+      <p className="small muted">Reminders pop up on your phone or computer, even when Kalorax is closed.</p>
       {config && !config.pushPublicKey ? (
-        <p className="small muted">Push notifications aren't switched on for Nutrintel yet.</p>
+        <p className="small muted">Push notifications aren't switched on for Kalorax yet.</p>
       ) : !pushSupported() || (isIos() && !isInstalled()) ? (
         blocked
       ) : onThisDevice ? (
@@ -121,7 +121,7 @@ export function CloudPushCard({ save }: { save: Save }) {
   );
 }
 
-const NUDGE_KEY = "nutrintel:notify-nudge-dismissed";
+const NUDGE_KEY = "kalorax:notify-nudge-dismissed";
 
 /** On Messages: offer to turn on notifications for this device, so replies aren't missed. */
 export function CloudNotifyNudge() {
@@ -253,7 +253,7 @@ export function CloudWhatsAppCard({ save }: { save: Save }) {
           </label>
           <label className="toggle consent">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-            <span className="small">I agree to get reminders from Nutrintel on WhatsApp. I can turn them off here at any time.</span>
+            <span className="small">I agree to get reminders from Kalorax on WhatsApp. I can turn them off here at any time.</span>
           </label>
           <div className="row">
             <button className="btn btn-primary" disabled={busy || !consent || !phone.trim()}>
@@ -309,7 +309,7 @@ export function LocalPushCard({ save }: { save: Save }) {
     setPermission(p);
     if (p === "granted") {
       save({ push: true });
-      void showNotification("Reminders are on ✅", "This is how your Nutrintel reminders will look.", "/reminders", "test");
+      void showNotification("Reminders are on ✅", "This is how your Kalorax reminders will look.", "/reminders", "test");
     }
   };
 
@@ -317,14 +317,14 @@ export function LocalPushCard({ save }: { save: Save }) {
     <Card className="channel-card">
       <ChannelHead icon={<BellRing size={20} />} title="Notifications on this device" status={on ? "On" : "Off"} />
       <p className="small muted">
-        Without an account, reminders show while Nutrintel is open in a tab. Accounts get reminders even when the app is closed.
+        Without an account, reminders show while Kalorax is open in a tab. Accounts get reminders even when the app is closed.
       </p>
       <PushBlocked />
       {on ? (
         <div className="row channel-actions">
           <span className="ok small"><Check size={15} /> Notifications allowed</span>
           <Switch label="Reminders on this device" checked={reminders.push} onChange={(push) => save({ push })} />
-          <button className="btn btn-ghost btn-small" onClick={() => showNotification("Test reminder", "This is how your Nutrintel reminders will look.", "/reminders", "test")}>
+          <button className="btn btn-ghost btn-small" onClick={() => showNotification("Test reminder", "This is how your Kalorax reminders will look.", "/reminders", "test")}>
             Send a test
           </button>
         </div>
@@ -340,8 +340,8 @@ export function LocalPushCard({ save }: { save: Save }) {
 export function LocalWhatsAppCard() {
   return (
     <Card className="channel-card is-muted">
-      <ChannelHead icon={<MessageCircle size={20} />} title="WhatsApp" status="Needs a Nutrintel account" />
-      <p className="small muted">WhatsApp reminders are sent from our servers, so they arrive with Nutrintel accounts.</p>
+      <ChannelHead icon={<MessageCircle size={20} />} title="WhatsApp" status="Needs a Kalorax account" />
+      <p className="small muted">WhatsApp reminders are sent from our servers, so they arrive with Kalorax accounts.</p>
     </Card>
   );
 }

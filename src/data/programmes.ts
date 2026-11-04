@@ -1,5 +1,5 @@
 // Paid interventions: the programmes dietitians can offer. Prices are set by each dietitian within
-// the range here (Nigeria, to test — see NUTRINTEL_STRATEGY.md §6). Descriptions are SAMPLE copy.
+// the range here (Nigeria, to test — see KALORAX_STRATEGY.md §6). Descriptions are SAMPLE copy.
 import type { Condition } from "../lib/nutrition";
 
 export interface Programme {
@@ -76,7 +76,7 @@ export const PROGRAMMES: Programme[] = [
 
 export const programmeById = (id: string) => PROGRAMMES.find((p) => p.id === id);
 
-/** Nutrintel's share of each payment, in percent (strategy: 15–30%). */
+/** Kalorax's share of each payment, in percent (strategy: 15–30%). */
 export const PLATFORM_FEE_PERCENT = 20;
 
 export const LANGUAGES = ["English", "Pidgin", "Yoruba", "Igbo", "Hausa"];

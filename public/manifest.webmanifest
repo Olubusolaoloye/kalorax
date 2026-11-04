@@ -1,12 +1,15 @@
 {
-  "name": "Nutrintel",
-  "short_name": "Nutrintel",
+  "name": "Kalorax",
+  "short_name": "Kalorax",
   "description": "Eat well. Move more. Feel good.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#eef2e8",
   "theme_color": "#b5dd6b",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

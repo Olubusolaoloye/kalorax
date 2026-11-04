@@ -69,6 +69,6 @@ export function groceryText(g: SharedGrocery, checked: string[], link: string): 
     lines.push("");
   }
   lines.push(`About ${naira(groceryTotal(g))} in total (estimate)`);
-  lines.push(`Plan your meals and shopping on Nutrintel: ${link}`);
+  lines.push(`Plan your meals and shopping on Kalorax: ${link}`);
   return lines.join("\n");
 }

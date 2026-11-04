@@ -35,6 +35,7 @@ import {
 } from "../lib/nutrition";
 import { fmt } from "../state/derived";
 import "./landing.css";
+import { Logo } from "../components/Logo";
 
 // The sample person from the design brief, run through the real engine.
 const ADAEZE: Anthropometrics = { sex: "female", ageYears: 30, weightKg: 70, heightCm: 165 };
@@ -58,10 +59,10 @@ const CUISINE_PHOTOS: Record<string, string> = { Nigerian: "recipe:egusi-eba", C
 const FAQ: Array<[string, ReactNode]> = [
   ["Is Nigerian food really in it?", <>Yes — that's the point. Eba, amala, pounded yam, jollof, ofada, egusi, efo riro, ogbono, moi moi, akara, suya and more, with local names and portions like wraps, cooking spoons and pieces. Continental and international dishes are there too.</>],
   ["Why don't I see BMR formulas?", <>Members get one simple daily target and a plate guide. The full calculations (BMR equations, energy requirements, macro distribution) live in the Professional Workbench for verified dietitians and nutrition students.</>],
-  ["I have diabetes / high blood pressure / I'm pregnant. Can I use it?", <>Yes, for logging and learning. Nutrintel won't auto-set a target for you — a dietitian should. Paid, dietitian-led programmes are coming.</>],
-  ["Does it work on my phone without data?", <>Nutrintel is a light web app you can add to your home screen. Your logs are saved on the device and it keeps working when you're offline.</>],
-  ["Is my health data private?", <>Your data stays on your device in this early version. As accounts arrive, Nutrintel is built to the Nigeria Data Protection Act's standard for sensitive health data.</>],
-  ["Does Nutrintel replace my doctor or dietitian?", <>No. Nutrintel supports healthy eating and helps you work with professionals — it doesn't diagnose or prescribe.</>],
+  ["I have diabetes / high blood pressure / I'm pregnant. Can I use it?", <>Yes, for logging and learning. Kalorax won't auto-set a target for you — a dietitian should. Paid, dietitian-led programmes are coming.</>],
+  ["Does it work on my phone without data?", <>Kalorax is a light web app you can add to your home screen. Your logs are saved on the device and it keeps working when you're offline.</>],
+  ["Is my health data private?", <>Your data stays on your device in this early version. As accounts arrive, Kalorax is built to the Nigeria Data Protection Act's standard for sensitive health data.</>],
+  ["Does Kalorax replace my doctor or dietitian?", <>No. Kalorax supports healthy eating and helps you work with professionals — it doesn't diagnose or prescribe.</>],
 ];
 
 /** Fade sections in as they scroll into view (skipped when reduced motion is on). */
@@ -163,7 +164,7 @@ export function Landing() {
       </div>
 
       <header className="lp-nav">
-        <Link to="/" className="lp-brand"><img src="/icon.svg" alt="" width={30} height={30} /> Nutrintel</Link>
+        <Link to="/" className="lp-brand"><Logo size={30} /></Link>
         <nav aria-label="Sections">
           <a href="#product">Product</a>
           <a href="#how">How it works</a>
@@ -188,7 +189,7 @@ export function Landing() {
             <em>Feel good.</em>
           </h1>
           <p className="lp-lead">
-            Nutrintel brings your meals, water and movement together in one calm place — with portions that match real plates,
+            Kalorax brings your meals, water and movement together in one calm place — with portions that match real plates,
             from jollof and egusi to pasta and salads. Small, steady habits, backed by dietitians.
           </p>
           <div className="lp-cta-row">
@@ -229,7 +230,7 @@ export function Landing() {
       </section>
 
       {/* Dish ribbon */}
-      <section className="lp-ribbon" aria-label="Some of the dishes in Nutrintel">
+      <section className="lp-ribbon" aria-label="Some of the dishes in Kalorax">
         <div className="lp-ribbon-track">
           {[...RIBBON, ...RIBBON].map(([key, emoji, name], i) => (
             <span key={`${key}-${i}`} className="lp-dish" aria-hidden={i >= RIBBON.length}>
@@ -253,7 +254,7 @@ export function Landing() {
             <div className="lp-tile-copy">
               <span className="lp-icon"><NotebookPen size={20} /></span>
               <h3>Portion guides that make sense</h3>
-              <p>No food scale needed. Pick a small, medium or large wrap, a cooking spoon or a piece — Nutrintel does the maths.</p>
+              <p>No food scale needed. Pick a small, medium or large wrap, a cooking spoon or a piece — Kalorax does the maths.</p>
             </div>
             <div className="lp-portions" aria-hidden>
               {[
@@ -319,7 +320,7 @@ export function Landing() {
               <div>
                 <span className="lp-icon"><Dumbbell size={20} /></span>
                 <h3>Move more, see what it does</h3>
-                <p>Log walks, dance, football, gym or house chores. Nutrintel estimates the energy you burn and tracks your weekly minutes.</p>
+                <p>Log walks, dance, football, gym or house chores. Kalorax estimates the energy you burn and tracks your weekly minutes.</p>
               </div>
               <div className="lp-activity" aria-hidden>
                 <div className="lp-activity-head">
@@ -443,7 +444,7 @@ export function Landing() {
         <div className="lp-trust">
           {[
             [<Stethoscope size={20} key="i" />, "Dietitian-first for conditions", "Diabetes, high blood pressure, kidney disease or pregnancy? No automatic targets — a dietitian sets yours."],
-            [<ShieldCheck size={20} key="i" />, "No supplement pushing", "Nutrintel never auto-recommends supplements. Any adjunct comes from a verified professional."],
+            [<ShieldCheck size={20} key="i" />, "No supplement pushing", "Kalorax never auto-recommends supplements. Any adjunct comes from a verified professional."],
             [<Lock size={20} key="i" />, "Private by default", "Health data treated as sensitive, built to the Nigeria Data Protection Act standard."],
             [<HeartHandshake size={20} key="i" />, "No shaming, ever", "Encouraging language, no before-and-after photos, no fad diets."],
           ].map(([icon, t, d]) => (
@@ -511,8 +512,8 @@ export function Landing() {
       </section>
 
       <footer className="lp-footer">
-        <Link to="/" className="lp-brand"><img src="/icon.svg" alt="" width={26} height={26} /> Nutrintel</Link>
-        <p>Nutrintel supports healthy eating but does not replace advice from your doctor or dietitian.</p>
+        <Link to="/" className="lp-brand"><Logo size={26} /></Link>
+        <p>Kalorax supports healthy eating but does not replace advice from your doctor or dietitian.</p>
         <nav aria-label="Footer">
           <a href="#product">Product</a>
           <a href="#pricing">Pricing</a>

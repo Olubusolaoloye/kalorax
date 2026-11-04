@@ -189,7 +189,7 @@ export function Recipes() {
               </li>
             ))}
           </ul>
-          <SampleNotice>Recipes and their nutrition values are samples until reviewed by Nutrintel's dietitians.</SampleNotice>
+          <SampleNotice>Recipes and their nutrition values are samples until reviewed by Kalorax's dietitians.</SampleNotice>
         </aside>
       </div>
       {planning && <AddToPlanSheet recipe={planning} onClose={() => setPlanning(null)} />}

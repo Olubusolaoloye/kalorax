@@ -13,7 +13,7 @@ const MAX_ATTEMPTS = 5;
 const LOG_KEEP_MS = 3 * 24 * 3600_000;
 
 export const whatsappConfigured = () =>
-  !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && (process.env.WHATSAPP_TEMPLATE ?? "nutrintel_reminder"));
+  !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && (process.env.WHATSAPP_TEMPLATE ?? "kalorax_reminder"));
 
 /** Which channels the server can send on. Public: the app needs the push key before signing in to settings. */
 export const config = query({
@@ -139,7 +139,7 @@ export const sendTest = mutation({
     await ctx.db.insert("reminderLog", { userId, key, sentAt: Date.now() });
     const msg: ReminderMessage = alarm
       ? { key, title: "⏰ Test alarm", body: "Alarms stay on screen until you tap Done or Snooze.", url: "/reminders", priority: true }
-      : { key, title: "Nutrintel reminders are on ✅", body: "This is how your reminders will look.", url: "/reminders" };
+      : { key, title: "Kalorax reminders are on ✅", body: "This is how your reminders will look.", url: "/reminders" };
     // An alarm test only goes to push (WhatsApp can't show alarms).
     const delivery = await deliveryFor(ctx, userId, [msg], { ignoreChannelSwitches: true, whatsapp: !alarm });
     if (alarm && !delivery?.push.length) throw new ConvexError("Turn on notifications on this device first.");

@@ -50,7 +50,7 @@ function LocalMessages() {
       </ul>
       <div className="card empty-state">
         <div className="empty-art" aria-hidden>💬</div>
-        <h2>Messaging needs a Nutrintel account</h2>
+        <h2>Messaging needs a Kalorax account</h2>
         <p className="muted">This version saves everything on your device. You can still share your meal plan and progress on WhatsApp and Instagram.</p>
         <div className="row" style={{ justifyContent: "center" }}>
           <Link to="/plan?share=1" className="btn btn-primary"><CalendarRange size={18} /> Share my meal plan</Link>
@@ -254,7 +254,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         <Avatar name={t?.name ?? "?"} />
         <div className="grow">
           <strong>{t?.name ?? "…"}</strong>
-          <span className="muted small" style={{ display: "block" }}>{t?.username ? `@${t.username}` : "Nutrintel member"}</span>
+          <span className="muted small" style={{ display: "block" }}>{t?.username ? `@${t.username}` : "Kalorax member"}</span>
         </div>
         {t && (!t.blocked || t.blockedByMe) && (
           <button

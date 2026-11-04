@@ -1,4 +1,4 @@
-// SAMPLE CONTENT for the prototype. Real articles are written or reviewed by Nutrintel's dietitians.
+// SAMPLE CONTENT for the prototype. Real articles are written or reviewed by Kalorax's dietitians.
 export type ArticleScope = "Global" | "Nigeria" | "Prevention";
 
 export interface Article {
@@ -17,7 +17,7 @@ export interface Article {
   source: string;
 }
 
-const SOURCE = "Sample content – Nutrintel editorial (to be dietitian-reviewed)";
+const SOURCE = "Sample content – Kalorax editorial (to be dietitian-reviewed)";
 
 export const ARTICLES: Article[] = [
   {
@@ -82,7 +82,7 @@ export const ARTICLES: Article[] = [
     body: [
       "Go for grilled over fried where you can, and ask for sauces on the side.",
       "Add a side of vegetables or salad, and choose water instead of a soft drink.",
-      "Share a large portion, or save half for later. Logging it in Nutrintel afterwards helps you see the bigger picture of your week.",
+      "Share a large portion, or save half for later. Logging it in Kalorax afterwards helps you see the bigger picture of your week.",
     ],
     tags: ["Eating out", "Fast food", "Portions"], readMinutes: 3, published: "2026-09-29", source: SOURCE,
   },

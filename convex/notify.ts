@@ -13,7 +13,7 @@ function pushReady(): boolean {
   const pub = process.env.VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
   if (!pub || !priv) return false;
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? "mailto:hello@nutrintel.ng", pub, priv);
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? "mailto:hello@kalorax.ng", pub, priv);
   return true;
 }
 
@@ -77,7 +77,7 @@ const reminderTemplate = (name: string, text: string) => [
 
 async function sendWhatsApp(d: Delivery) {
   if (!d.whatsapp || !process.env.WHATSAPP_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) return;
-  const template = process.env.WHATSAPP_TEMPLATE ?? "nutrintel_reminder";
+  const template = process.env.WHATSAPP_TEMPLATE ?? "kalorax_reminder";
   // One message per run, even when several reminders fall due together.
   const text = d.whatsappText ?? d.messages.map((m) => `${m.title} ${m.body}`).join(" · ");
   await sendTemplate(d.whatsapp, template, reminderTemplate(d.name, text));
@@ -138,7 +138,7 @@ export const sendWhatsAppCode = internalAction({
         { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
       ]);
     } else {
-      await sendTemplate(phone, process.env.WHATSAPP_TEMPLATE ?? "nutrintel_reminder", reminderTemplate("there", `your Nutrintel code is ${code}. Enter it in the app to switch on WhatsApp reminders.`));
+      await sendTemplate(phone, process.env.WHATSAPP_TEMPLATE ?? "kalorax_reminder", reminderTemplate("there", `your Kalorax code is ${code}. Enter it in the app to switch on WhatsApp reminders.`));
     }
   },
 });

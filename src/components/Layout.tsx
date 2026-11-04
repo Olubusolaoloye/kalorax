@@ -25,6 +25,7 @@ import { canUseWorkbench, useStore } from "../state/store";
 import { useLocalReminders } from "../state/useLocalReminders";
 import { CloudEnsureUsername, CloudUnreadBadge } from "./Social";
 import { SkeletonPage } from "./ui";
+import { Logo } from "./Logo";
 
 function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -44,7 +45,7 @@ function useOnline() {
 export function Brand() {
   return (
     <Link to="/home" className="brand">
-      <img src="/icon.svg" alt="" width={32} height={32} /> Nutrintel
+      <Logo size={30} />
     </Link>
   );
 }

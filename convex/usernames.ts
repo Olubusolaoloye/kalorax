@@ -4,7 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 const RESERVED = new Set([
-  "admin", "administrator", "nutrintel", "nutrifi", "support", "help", "root", "system", "official", "moderator", "mod",
+  "admin", "administrator", "kalorax", "nutrintel", "nutrifi", "support", "help", "root", "system", "official", "moderator", "mod",
   "staff", "team", "dietitian", "dietician", "doctor", "me", "you", "null", "undefined", "everyone", "here",
 ]);
 

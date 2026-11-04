@@ -1,7 +1,7 @@
 // Minimal offline support: cache the app shell, serve it when offline.
 // Network-first so users always get the newest version when online.
-const CACHE = "nutrintel-v5";
-const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "kalorax-v6";
+const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.svg", "/icon-192.png", "/badge-96.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -35,8 +35,8 @@ function notificationOptions(data) {
   const alarm = !!data.priority;
   return {
     body: data.body || "",
-    icon: "/icon.svg",
-    badge: "/icon.svg",
+    icon: "/icon-192.png",
+    badge: "/badge-96.png",
     tag: data.tag,
     // A newer message in the same chat (or an alarm coming back from snooze) replaces the old one and still buzzes.
     renotify: alarm || !!(data.tag && data.tag.startsWith("chat-")),
@@ -56,7 +56,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  event.waitUntil(self.registration.showNotification(data.title || "Nutrintel", notificationOptions(data)));
+  event.waitUntil(self.registration.showNotification(data.title || "Kalorax", notificationOptions(data)));
 });
 
 // Lets the app show alarms through the service worker (on-device reminders).
@@ -76,7 +76,7 @@ self.addEventListener("notificationclick", (event) => {
       data.snoozeUrl
         // Account: the server sends it again in 10 minutes, even if the phone is locked.
         ? fetch(data.snoozeUrl, { method: "POST", body: data.snoozeToken, headers: { "Content-Type": "text/plain" } }).catch(() => {})
-        // On-device: ask an open Nutrintel window to show it again in 10 minutes.
+        // On-device: ask an open Kalorax window to show it again in 10 minutes.
         : self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) =>
             wins.forEach((w) => w.postMessage({ type: "snooze", title: data.title, body: data.body, url: data.url, tag: data.tag })),
           ),

@@ -1,4 +1,4 @@
-// Turns CSV files into food diary entries and meal plan slots, matching names to Nutrintel's foods and recipes.
+// Turns CSV files into food diary entries and meal plan slots, matching names to Kalorax's foods and recipes.
 // Every row either becomes an item or a problem with its line number, so people can fix the file and try again.
 import { FOODS, RECIPE_PREFIX, foodById, type Food } from "../data/foods";
 import { RECIPES, type Recipe } from "../data/recipes";
@@ -117,7 +117,7 @@ function finder<T>(entries: Array<{ value: T; keys: string[]; name: string }>, w
       const names = partial.slice(0, 3).map((e) => `"${e.name}"`).join(", ");
       return { error: `"${raw}" matches more than one ${what} (${names}${partial.length > 3 ? ", …" : ""}). Use the full name.` };
     }
-    return { error: `Couldn't find the ${what} "${raw}". Check the spelling, or use a name from Nutrintel.` };
+    return { error: `Couldn't find the ${what} "${raw}". Check the spelling, or use a name from Kalorax.` };
   };
 }
 
@@ -231,7 +231,7 @@ export function parsePlanCsv(text: string): ImportResult<PlanImportItem> | { err
     const meal = parseMeal(cell(row, "meal"));
     if (!meal) return fail(`"${cell(row, "meal")}" isn't a meal. Use Breakfast, Lunch, Dinner or Snack.`);
     const match = findRecipe(cell(row, "item"));
-    if ("error" in match) return fail(match.error.replace("use a name from Nutrintel", "use a dish from the Healthy menu"));
+    if ("error" in match) return fail(match.error.replace("use a name from Kalorax", "use a dish from the Healthy menu"));
     const servingsRaw = cell(row, "servings") || cell(row, "portion");
     let portion = 1;
     if (servingsRaw) {

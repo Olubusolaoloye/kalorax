@@ -35,7 +35,7 @@ export async function dietitianCard(ctx: Ctx, dietitianId: Id<"users">): Promise
   ]);
   return {
     id: dietitianId,
-    name: profile?.name ?? "Nutrintel dietitian",
+    name: profile?.name ?? "Kalorax dietitian",
     bio: dp?.bio ?? "",
     languages: dp?.languages ?? ["English"],
     yearsExperience: dp?.yearsExperience ?? 0,
@@ -60,7 +60,7 @@ export async function threadFor(ctx: Ctx, enrolmentId: Id<"enrolments">, viewerI
     await ctx.db.query("messages").withIndex("by_enrolment_sent", (q) => q.eq("enrolmentId", enrolmentId)).order("desc").take(THREAD_LIMIT)
   ).reverse();
   const names = new Map<string, string>();
-  for (const id of new Set(rows.map((r) => r.senderId))) names.set(id, (await getProfile(ctx, id))?.name ?? "Nutrintel member");
+  for (const id of new Set(rows.map((r) => r.senderId))) names.set(id, (await getProfile(ctx, id))?.name ?? "Kalorax member");
   return rows.map((m) => ({ id: m._id, fromMe: m.senderId === viewerId, senderName: names.get(m.senderId)!, text: m.text, sentAt: new Date(m.sentAt).toISOString() }));
 }
 
@@ -239,7 +239,7 @@ async function chatHeader(ctx: QueryCtx, e: Doc<"enrolments">, userId: Id<"users
   return {
     id: e._id as string,
     role,
-    name: other?.name ?? (role === "member" ? "Your dietitian" : "Nutrintel member"),
+    name: other?.name ?? (role === "member" ? "Your dietitian" : "Kalorax member"),
     programme: programme ? `${programme.emoji} ${programme.name}` : "Programme",
     status: e.status,
     endedByMe: !!(role === "member" ? e.memberEndedAt : e.dietitianEndedAt),

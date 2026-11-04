@@ -72,7 +72,7 @@ export function CloudSendToFriend({ payload }: { payload: FriendPayload }) {
   return (
     <div className="share-friend">
       <PeoplePicker
-        label="Send to a Nutrintel friend"
+        label="Send to a Kalorax friend"
         busy={busy}
         error={error}
         onPick={async (username) => {

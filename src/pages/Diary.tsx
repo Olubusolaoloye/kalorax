@@ -66,11 +66,11 @@ export function Diary() {
           columns={[
             { name: "date", hint: "YYYY-MM-DD or DD/MM/YYYY, today or earlier" },
             { name: "meal", hint: "Breakfast, Lunch, Dinner or Snack" },
-            { name: "food", hint: "a food or recipe name from Nutrintel, e.g. Jollof rice" },
+            { name: "food", hint: "a food or recipe name from Kalorax, e.g. Jollof rice" },
             { name: "portion or grams", hint: "optional, e.g. \"1 plate\" or 250; otherwise the usual portion" },
             { name: "time", hint: "optional, e.g. 08:30" },
           ]}
-          templateName="nutrintel-food-log.csv"
+          templateName="kalorax-food-log.csv"
           template={() => diaryTemplate(today)}
           parse={(text) => parseDiaryCsv(text, today)}
           headings={["Date", "Meal", "Food", "Amount", "Calories"]}

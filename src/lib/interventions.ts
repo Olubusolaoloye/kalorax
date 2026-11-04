@@ -129,7 +129,7 @@ export interface Earnings {
   activeClients: number;
 }
 
-/** What the member pays, Nutrintel's fee and the dietitian's share (whole Naira). */
+/** What the member pays, Kalorax's fee and the dietitian's share (whole Naira). */
 export function splitPayment(priceNaira: number, feePercent = PLATFORM_FEE_PERCENT) {
   const fee = Math.round((priceNaira * feePercent) / 100);
   return { price: priceNaira, fee, payout: priceNaira - fee };

@@ -117,7 +117,7 @@ function appRoutes(isAdmin: boolean) {
 function Splash() {
   return (
     <div className="main">
-      <SkeletonPage label="Loading Nutrintel" />
+      <SkeletonPage label="Loading Kalorax" />
     </div>
   );
 }

@@ -78,7 +78,7 @@ export const claimMessageAlert = internalMutation({
     if (!delivery) return null;
     if (delivery.whatsapp) {
       // No message text on WhatsApp either: just who wrote.
-      delivery.whatsappText = `${name} sent you ${count > 1 ? `${count} messages` : "a message"} on Nutrintel. Open the app to reply.`;
+      delivery.whatsappText = `${name} sent you ${count > 1 ? `${count} messages` : "a message"} on Kalorax. Open the app to reply.`;
       await ctx.db.insert("reminderLog", { userId: to, key: waKey, sentAt: Date.now() });
     }
     return delivery;

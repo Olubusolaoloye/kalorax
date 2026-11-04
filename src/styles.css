@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Nutrintel design system — premium edition
+   Kalorax design system — premium edition
    Deep forest ink + electric lime, warm porcelain surfaces, glass navigation.
    ========================================================================== */
 :root {
@@ -515,6 +515,9 @@ button.food-row:active { transform: scale(0.99); }
 .mobile-top a { text-decoration: none; color: inherit; }
 .brand { display: flex; align-items: center; gap: 0.55rem; font-weight: 800; font-size: 1.18rem; letter-spacing: -0.03em; text-decoration: none; color: inherit; }
 .brand img { border-radius: 10px; box-shadow: var(--shadow-sm); }
+/* Kalorax logo: the plate and letters take the text colour (ink, or cream in dark mode). */
+.logo { display: inline-flex; align-items: center; gap: 0.5em; color: inherit; line-height: 0; }
+.logo svg { display: block; flex-shrink: 0; }
 .avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: linear-gradient(135deg, #ffe08a, var(--tile-carbs)); color: var(--on-tile); font-weight: 800; flex-shrink: 0; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5); }
 .profile-chip { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; color: inherit; min-width: 0; }
 .profile-chip strong { display: block; }

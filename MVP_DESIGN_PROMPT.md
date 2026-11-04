@@ -1,4 +1,4 @@
-# Nutrintel MVP — UI/UX Design Brief (prompt for the design agent)
+# Kalorax MVP — UI/UX Design Brief (prompt for the design agent)
 
 > Copy everything below the line into your UI/UX design agent.
 
@@ -6,9 +6,9 @@
 
 ## Your role
 
-You are a senior product designer. Design a **clickable, high-fidelity prototype** of the MVP for **Nutrintel**, a nutrition app for **Nigeria**.
+You are a senior product designer. Design a **clickable, high-fidelity prototype** of the MVP for **Kalorax**, a nutrition app for **Nigeria**.
 
-**Platform: a web app first.** Nutrintel launches as a **mobile-first, responsive progressive web app (PWA)** built in React. People open it from a link (often shared on WhatsApp) and can "Add to home screen" so it feels like an app. A Google Play listing of the same web app comes later. Design for the browser, not a native app.
+**Platform: a web app first.** Kalorax launches as a **mobile-first, responsive progressive web app (PWA)** built in React. People open it from a link (often shared on WhatsApp) and can "Add to home screen" so it feels like an app. A Google Play listing of the same web app comes later. Design for the browser, not a native app.
 
 Produce:
 
@@ -25,7 +25,7 @@ Where this brief doesn't settle a design choice, decide it yourself and note why
 
 ## 1. Product context
 
-Nutrintel helps Nigerians track and improve what they eat, using **Nigerian foods and portions**. It has three user types:
+Kalorax helps Nigerians track and improve what they eat, using **Nigerian foods and portions**. It has three user types:
 
 | Role | Who | What they get |
 |---|---|---|
@@ -49,13 +49,13 @@ Nutrintel helps Nigerians track and improve what they eat, using **Nigerian food
   2. **Friendly outside, clinically sound inside.** Warm and encouraging, never shaming. Show numbers to professionals; give consumers plain language.
   3. **Fast and light.** Few heavy images, skeleton loaders, clear offline states.
   4. **Accessible.** WCAG AA contrast, tap targets ≥ 48 dp, readable at 1.3× system font size, and never colour alone to show meaning (e.g. BMI category gets a label as well as a colour).
-  5. **Trustworthy.** Show data sources ("Source: West African Food Composition Table"), a clear disclaimer that Nutrintel doesn't replace medical care, and a visible privacy reassurance at sign-up.
+  5. **Trustworthy.** Show data sources ("Source: West African Food Composition Table"), a clear disclaimer that Kalorax doesn't replace medical care, and a visible privacy reassurance at sign-up.
 
 ---
 
 ## 3. Brand direction (starting point — refine it)
 
-- **Name:** Nutrintel. **Tagline idea:** "Eat well, the Naija way." (Propose 2 alternatives.)
+- **Name:** Kalorax. **Tagline idea:** "Eat well, the Naija way." (Propose 2 alternatives.)
 - **Personality:** warm, smart, optimistic, credible.
 - **Colour:** a fresh green primary (health and growth) and a warm accent drawn from Nigerian food (palm-oil orange / plantain yellow), on a clean light neutral background. Provide a **dark mode** too. Give semantic colours for success, warning, danger and info, plus BMI category colours (each always paired with a text label).
 - **Type:** one highly legible sans-serif with good numerals (e.g. Inter, Manrope, or similar), with a clear scale for large stat numbers.
@@ -84,7 +84,7 @@ Students and dietitians also see a **"Workbench"** entry, as a highlighted card 
 Design each screen's **default, empty, loading, error/offline** states where relevant.
 
 ### A. Onboarding and account
-1. **Landing page** (public, also the PWA start URL): what Nutrintel does, "Get started" and "Log in", plus a short section for dietitians and students. It must load fast on 3G.
+1. **Landing page** (public, also the PWA start URL): what Kalorax does, "Get started" and "Log in", plus a short section for dietitians and students. It must load fast on 3G.
 2. **Welcome carousel** (3 slides): track Nigerian foods · know your body · get expert help.
 3. **Sign up / Log in**: phone number + OTP (primary), email, Google. Include a short privacy reassurance ("Your health data is private and protected under the Nigeria Data Protection Act").
 4. **Choose your role**: "I want to improve my nutrition" / "I'm a nutrition student" / "I'm a dietitian".
@@ -156,12 +156,12 @@ The **core pro screen**. Layout: **inputs on the left, results on the right**, w
 5. **Food sources for each nutrient**: pick a nutrient (protein, iron, calcium, vitamin A, fibre…) to see the top Nigerian food sources ranked per 100 g and per typical portion, with a source citation.
 6. **Show working** (students): an expandable step-by-step derivation with the formula and the numbers substituted in.
 7. **Practice cases** (students): a case card ("Mrs A, 30 y, 70 kg, 165 cm, moderately active…"). The student enters answers and the app checks them, showing ✓/✗ and the working.
-8. **Export / print**: a clean one-page report preview (PDF style) with Nutrintel branding, inputs, results, the equation used and a date stamp.
+8. **Export / print**: a clean one-page report preview (PDF style) with Kalorax branding, inputs, results, the equation used and a date stamp.
 9. **Dietitian "My clients" list** (MVP stub): a simple list + "Add client". Show that full client management is coming soon.
 
 ### I. System screens
 - Offline banner ("You're offline. Your logs will sync when you reconnect").
-- **"Add Nutrintel to your home screen"** prompt: an Android install banner, plus an iPhone instruction sheet (Share → Add to Home Screen). Show it after the user's first logged meal, not on first visit.
+- **"Add Kalorax to your home screen"** prompt: an Android install banner, plus an iPhone instruction sheet (Share → Add to Home Screen). Show it after the user's first logged meal, not on first visit.
 - **"New version available — Refresh"** update banner.
 - Generic error, empty states (with illustrations), loading skeletons.
 - Browser push notification examples (meal, water, weigh-in), plus a WhatsApp reminder mock. **WhatsApp/SMS is the main reminder channel**, because web push on iPhone only works once the app has been added to the home screen.
@@ -222,7 +222,7 @@ Provide **wireframe-level** concepts only, so the design system scales to:
 - **Pregnancy monitor** (gestational week, weight gain vs recommended range chart)
 - **Child growth monitor** (child profiles, WHO growth chart with z-score bands, flags)
 - **Interventions marketplace** (dietitian profiles, programme cards, booking, chat)
-- **Food product marketplace** (vetted product cards with "Nutrintel-vetted" and NAFDAC badges, "Sponsored" label)
+- **Food product marketplace** (vetted product cards with "Kalorax-vetted" and NAFDAC badges, "Sponsored" label)
 
 ---
 

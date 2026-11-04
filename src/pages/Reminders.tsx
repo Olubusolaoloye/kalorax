@@ -63,7 +63,7 @@ function AlarmsCard({ reminders, save, cloud }: { reminders: ReminderSettings; s
         <p className="small muted">Turn on notifications for this device (left) to get alarms.</p>
       )}
       {isIos() && <p className="small muted">On iPhone, alarms show as normal notifications: iOS doesn't let web apps vibrate or keep them on screen.</p>}
-      {!cloud && <p className="small muted">In this version, reminders and snoozes only work while Nutrintel is open.</p>}
+      {!cloud && <p className="small muted">In this version, reminders and snoozes only work while Kalorax is open.</p>}
     </Card>
   );
 }
@@ -105,7 +105,7 @@ export function Reminders() {
           <div className="rem-preview" aria-label="Preview">
             <span className="muted small">Preview</span>
             <div className="push-preview">
-              <img src="/icon.svg" alt="" width={28} height={28} />
+              <img src="/icon-192.png" alt="" width={28} height={28} />
               <div>
                 <strong className="small">Lunch time 🍽️</strong>
                 <p className="small">{previewBody}</p>
@@ -113,7 +113,7 @@ export function Reminders() {
               <span className="muted small">now</span>
             </div>
             <div className="wa-preview">
-              <p className="small">Hi {first}, a reminder from Nutrintel: Lunch time 🍽️ {previewBody}</p>
+              <p className="small">Hi {first}, a reminder from Kalorax: Lunch time 🍽️ {previewBody}</p>
               <span className="wa-time">13:00 ✓✓</span>
             </div>
           </div>

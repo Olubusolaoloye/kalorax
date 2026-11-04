@@ -155,7 +155,7 @@ export function MealPlan() {
             { name: "recipe", hint: "a dish from the Healthy menu, e.g. Moi moi with egg" },
             { name: "servings", hint: "optional, ¼ to 4 (default 1)" },
           ]}
-          templateName="nutrintel-meal-plan.csv"
+          templateName="kalorax-meal-plan.csv"
           template={() => planTemplate(dates)}
           parse={parsePlanCsv}
           headings={["Date", "Meal", "Dish", "Servings", "Calories"]}
@@ -262,7 +262,7 @@ export function MealPlan() {
         })}
       </div>
       <SampleNotice>
-        Plans use Nutrintel's sample recipes and estimated ₦ prices. A plan from your dietitian always comes first.
+        Plans use Kalorax's sample recipes and estimated ₦ prices. A plan from your dietitian always comes first.
       </SampleNotice>
 
       {showPrefs && <PrefsSheet prefs={planPrefs} onSave={updatePlanPrefs} onClose={() => setShowPrefs(false)} />}

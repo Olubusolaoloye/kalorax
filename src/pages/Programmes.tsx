@@ -25,7 +25,7 @@ function PreviewBanner() {
   const { mode } = useInterventions();
   return mode === "preview" ? (
     <div className="banner banner-info">
-      Preview: these dietitians are samples and no payment is taken. Real, verified dietitians and Paystack checkout arrive with Nutrintel accounts.
+      Preview: these dietitians are samples and no payment is taken. Real, verified dietitians and Paystack checkout arrive with Kalorax accounts.
     </div>
   ) : null;
 }
@@ -90,7 +90,7 @@ export function Programmes() {
       <h2 className="section-title">{suggested.length ? "All programmes" : "Choose a programme"}</h2>
       <ProgrammeGrid list={PROGRAMMES.filter((p) => !suggested.includes(p))} offersFor={offersFor} />
       <SampleNotice>
-        Programme descriptions are samples. Dietitians set their own prices; Nutrintel keeps {PLATFORM_FEE_PERCENT}% to run the platform.
+        Programme descriptions are samples. Dietitians set their own prices; Kalorax keeps {PLATFORM_FEE_PERCENT}% to run the platform.
       </SampleNotice>
     </div>
   );
@@ -259,7 +259,7 @@ function EnrolSheet({ programme, offering, onClose }: { programme: Programme; of
             <span>{programme.name} ({length(programme)})</span>
             <strong>{naira(offering.priceNaira)}</strong>
           </div>
-          <span className="small muted">Includes Nutrintel's platform fee. Paid securely with Paystack.</span>
+          <span className="small muted">Includes Kalorax's platform fee. Paid securely with Paystack.</span>
         </div>
         {error && <p className="small error" role="alert">{error}</p>}
         <button className="btn btn-primary btn-block" disabled={busy}>

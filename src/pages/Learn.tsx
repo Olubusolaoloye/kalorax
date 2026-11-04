@@ -69,7 +69,7 @@ export function Learn() {
                   <ArticleMeta a={featured} />
                   <h2 className="featured-article-title">{featured.title}</h2>
                   <p className="muted">{featured.summary}</p>
-                  <span className="author"><span className="author-dot" aria-hidden>N</span> Nutrintel editorial</span>
+                  <span className="author"><span className="author-dot" aria-hidden>N</span> Kalorax editorial</span>
                 </div>
               </Link>
 
@@ -126,7 +126,7 @@ export function Learn() {
               ))}
             </ul>
           </div>
-          <SampleNotice>Articles are sample content until Nutrintel's dietitians publish reviewed pieces.</SampleNotice>
+          <SampleNotice>Articles are sample content until Kalorax's dietitians publish reviewed pieces.</SampleNotice>
         </aside>
       </div>
     </div>
@@ -150,7 +150,7 @@ export function ArticlePage() {
           <ArticleMeta a={a} />
           <h1>{a.title}</h1>
           <div className="row" style={{ marginBottom: "1rem" }}>
-            <span className="author"><span className="author-dot" aria-hidden>N</span> Nutrintel editorial</span>
+            <span className="author"><span className="author-dot" aria-hidden>N</span> Kalorax editorial</span>
             <span className="badge badge-ok"><ShieldCheck size={13} aria-hidden /> Dietitian review pending</span>
           </div>
           <Thumb emoji={a.emoji} size="lg" photo={`article:${a.id}`} />

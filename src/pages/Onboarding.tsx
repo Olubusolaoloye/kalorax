@@ -13,6 +13,7 @@ import {
 } from "../lib/nutrition";
 import { bodySummary, fmt } from "../state/derived";
 import { useStore, type Profile, type Role } from "../state/store";
+import { Logo } from "../components/Logo";
 
 const GOALS: Array<{ value: Goal; label: string }> = [
   { value: "lose", label: "Lose weight" },
@@ -103,7 +104,7 @@ export function Onboarding() {
   return (
     <div className="onboarding">
       <div className="landing-brand" style={{ marginBottom: "1rem" }}>
-        <img src="/icon.svg" alt="" width={32} height={32} /> Nutrintel
+        <Logo size={30} />
       </div>
       <div className="onboarding-card">
       <div className="progress-dots" aria-label={`Step ${step + 1} of ${steps.length}`}>
@@ -111,7 +112,7 @@ export function Onboarding() {
       </div>
 
       {current === "role" && (
-        <Step title="How will you use Nutrintel?">
+        <Step title="How will you use Kalorax?">
           {ROLES.map((r) => (
             <Choice key={r.value} selected={d.role === r.value} onClick={() => set("role", r.value)} label={r.label} hint={r.hint} />
           ))}
