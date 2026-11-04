@@ -2,7 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
-import { checkDate, getProfile, isAdmin } from "./helpers";
+import { checkDate, getProfile, hasAccess, isAdmin } from "./helpers";
 import { activeTarget } from "./interventions";
 
 /** How much dated history the snapshot carries. Older days load on demand through `history`. */
@@ -34,22 +34,27 @@ export const snapshot = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
     const historyFrom = isoDay(Date.now() - HISTORY_DAYS * 86_400_000);
+    // Private mode, and this account isn't invited: no data (the dated reads use an empty range),
+    // and the app shows the "private testing" screen.
+    const locked = !(await hasAccess(ctx, userId));
+    const from = locked ? "9999-12-31" : historyFrom;
     const [user, profile, dated, weights, grocery, verifications, settings, admin, dietitianTarget] = await Promise.all([
       ctx.db.get(userId),
-      getProfile(ctx, userId),
-      datedRows(ctx, userId, historyFrom, "9999-12-31"),
+      locked ? null : getProfile(ctx, userId),
+      datedRows(ctx, userId, from, locked ? "9999-12-30" : "9999-12-31"),
       // Weigh-ins are few and the progress chart shows them all.
-      ctx.db.query("weights").withIndex("by_user_date", (q) => q.eq("userId", userId)).collect(),
-      ctx.db.query("grocery").withIndex("by_user", (q) => q.eq("userId", userId)).unique(),
-      ctx.db.query("verifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
-      ctx.db.query("settings").withIndex("by_user", (q) => q.eq("userId", userId)).unique(),
-      isAdmin(ctx, userId),
-      activeTarget(ctx, userId),
+      ctx.db.query("weights").withIndex("by_user_date", (q) => (locked ? q.eq("userId", userId).eq("date", "") : q.eq("userId", userId))).collect(),
+      locked ? null : ctx.db.query("grocery").withIndex("by_user", (q) => q.eq("userId", userId)).unique(),
+      locked ? [] : ctx.db.query("verifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+      locked ? null : ctx.db.query("settings").withIndex("by_user", (q) => q.eq("userId", userId)).unique(),
+      locked ? false : isAdmin(ctx, userId),
+      locked ? null : activeTarget(ctx, userId),
     ]);
     const { diary, water, notes, exercises, events, plan } = dated;
     const latest = verifications.sort((a, b) => b.submittedAt - a.submittedAt)[0] ?? null;
 
     return {
+      locked,
       email: user?.email ?? null,
       isAdmin: admin,
       profile,
@@ -77,7 +82,7 @@ export const history = query({
   args: { from: v.string(), to: v.string() },
   handler: async (ctx, { from, to }) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
+    if (!userId || !(await hasAccess(ctx, userId))) return null;
     checkDate(from);
     checkDate(to);
     if (from > to || Date.parse(to) - Date.parse(from) > 62 * 86_400_000) throw new ConvexError("Choose up to two months at a time.");

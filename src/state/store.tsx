@@ -226,8 +226,8 @@ export interface Store extends PersistedState {
   mode: "local" | "cloud";
   /** False while cloud data is still loading. */
   ready: boolean;
-  /** Signed-in account (cloud mode). */
-  account: { email: string | null; isAdmin: boolean } | null;
+  /** Signed-in account (cloud mode). `locked`: private mode is on and this email isn't invited. */
+  account: { email: string | null; isAdmin: boolean; locked: boolean } | null;
   /** Latest verification request (cloud mode). */
   verificationInfo: VerificationInfo | null;
   latestWeightKg: number | null;

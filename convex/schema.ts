@@ -250,7 +250,8 @@ export default defineSchema({
   /** Every admin action (approvals, rejections, payouts): who did what, to whom, and when. Never edited or deleted by the app. */
   adminLog: defineTable({
     adminId: v.id("users"),
-    action: v.union(v.literal("verification_approved"), v.literal("verification_rejected"), v.literal("payout_recorded"), v.literal("waitlist_exported")),
+    action: v.union(v.literal("verification_approved"), v.literal("verification_rejected"), v.literal("payout_recorded"), v.literal("waitlist_exported"),
+      v.literal("private_mode_on"), v.literal("private_mode_off"), v.literal("invite_added"), v.literal("invite_removed")),
     subjectId: v.optional(v.id("users")),
     detail: v.string(),
     at: v.number(),
@@ -264,6 +265,22 @@ export default defineSchema({
     paidAt: v.number(),
     recordedBy: v.id("users"),
   }).index("by_dietitian", ["dietitianId"]),
+
+  /** App-wide switches set by admins. One row per key; "access" holds private mode. */
+  appConfig: defineTable({
+    key: v.literal("access"),
+    /** On: only admins and invited emails can create accounts or use the app; the public sees the waitlist. */
+    privateMode: v.boolean(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
+  /** Emails an admin invited to use the app while it's in private mode. */
+  invites: defineTable({
+    email: v.string(),
+    role: v.union(v.literal("member"), v.literal("student"), v.literal("dietitian")),
+    invitedBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_email", ["email"]),
 
   waitlist: defineTable({
     email: v.string(),

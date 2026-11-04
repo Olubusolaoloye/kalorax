@@ -1,7 +1,9 @@
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, Mail } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { api } from "../../convex/_generated/api";
 import { Logo } from "../components/Logo";
 
 /** forgot: ask for a reset code. reset: enter the code and a new password. */
@@ -17,6 +19,7 @@ function withTimeout<T>(p: Promise<T>): Promise<T> {
 /** Turn Convex Auth errors into plain language. */
 function friendly(err: unknown, flow: Flow): string {
   const msg = err instanceof Error ? err.message : String(err);
+  if (/invite-only/i.test(msg)) return "Kalorax is invite-only for now. If you were invited, use the email address the invite was sent to; otherwise join the waitlist on the home page.";
   if (/already exists/i.test(msg)) return "An account with this email already exists. Try signing in.";
   if (/isn't set up/i.test(msg)) return "Password reset isn't available yet. Please contact hello@kalorax.ng.";
   if (flow === "reset" && /InvalidSecret|code|expired|verif/i.test(msg)) return "That code is wrong or has expired. Check the email or ask for a new code.";
@@ -32,7 +35,9 @@ export function Auth() {
   const { signIn } = useAuthActions();
   const [params] = useSearchParams();
   const [flow, setFlow] = useState<Flow>(params.get("mode") === "signup" ? "signUp" : "signIn");
-  const [email, setEmail] = useState("");
+  // An invite link carries the invited address (…/auth?mode=signup&email=…).
+  const [email, setEmail] = useState(() => params.get("email") ?? "");
+  const privateMode = useQuery(api.access.status)?.privateMode ?? false;
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
@@ -126,6 +131,9 @@ export function Auth() {
             <button role="tab" aria-selected={flow === "signIn"} className={flow === "signIn" ? "on" : ""} onClick={() => go("signIn")}>Sign in</button>
             <button role="tab" aria-selected={flow === "signUp"} className={flow === "signUp" ? "on" : ""} onClick={() => go("signUp")}>Create account</button>
           </div>
+        )}
+        {privateMode && flow === "signUp" && (
+          <p className="banner banner-info small" role="status">Kalorax is invite-only for now. Create your account with the email address you were invited with.</p>
         )}
         {info && <p className="banner banner-info small" role="status">{info}</p>}
         <form onSubmit={submit}>

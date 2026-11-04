@@ -1,4 +1,8 @@
-import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth, useQuery } from "convex/react";
+import { LogOut } from "lucide-react";
+import { api } from "../convex/_generated/api";
+import { Logo } from "./components/Logo";
 import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
@@ -46,6 +50,7 @@ const Exercises = page(loaders.Exercises, "Exercises");
 const Grocery = page(loaders.Grocery, "Grocery");
 const Home = page(loaders.Home, "Home");
 const Landing = page(loaders.Landing, "Landing");
+const PrivateLanding = page(loaders.Landing, "PrivateLanding");
 const Learn = page(loaders.Learn, "Learn");
 const ArticlePage = page(loaders.Learn, "ArticlePage");
 const MealPlan = page(loaders.MealPlan, "MealPlan");
@@ -136,21 +141,47 @@ function LocalApp() {
   );
 }
 
-/** Cloud mode: sign in → set up profile → app. */
+/** Signed in, but private mode is on and this email isn't invited. */
+function PrivateTesting({ email }: { email: string | null }) {
+  const { signOut } = useAuthActions();
+  return (
+    <div className="locked-screen">
+      <Logo size={36} />
+      <h1>Kalorax is in private testing</h1>
+      <p className="muted">
+        {email ? <>You're signed in as <strong>{email}</strong>, which isn't on the invite list yet. </> : null}
+        We're letting people in from the waitlist a few at a time, and we'll email you as soon as you can join.
+      </p>
+      <button className="btn btn-secondary" onClick={() => void signOut()}><LogOut size={16} /> Sign out</button>
+    </div>
+  );
+}
+
+/** Cloud mode: sign in → set up profile → app. In private mode the public sees only the waitlist. */
 function CloudApp() {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { ready, profile, account } = useStore();
+  const access = useQuery(api.access.status);
 
-  if (isLoading || (isAuthenticated && !ready)) return <Splash />;
+  if (isLoading || (isAuthenticated && !ready) || (!isAuthenticated && access === undefined)) return <Splash />;
 
   if (!isAuthenticated) {
     return (
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={access?.privateMode ? <PrivateLanding /> : <Landing />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/start" element={<Navigate to="/auth?mode=signup" replace />} />
         <Route path="/credits" element={<Credits />} />
         <Route path="*" element={<Navigate to="/auth" replace />} />
+      </Routes>
+    );
+  }
+
+  if (account?.locked) {
+    return (
+      <Routes>
+        <Route path="/credits" element={<Credits />} />
+        <Route path="*" element={<PrivateTesting email={account.email} />} />
       </Routes>
     );
   }

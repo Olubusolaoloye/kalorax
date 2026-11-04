@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from "convex/react";
-import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, CircleCheck, CircleX, Download, Gauge, HeartPulse, MessageCircle, NotebookPen, ShieldAlert, UserPlus, Users } from "lucide-react";
+import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck, CircleX, Download, Gauge, HeartPulse, Lock, LockOpen, MessageCircle, NotebookPen, ShieldAlert, UserMinus, UserPlus, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { PageHeader, SearchBox, SkeletonLines } from "../components/ui";
+import { PageHeader, SearchBox, SkeletonLines, Switch } from "../components/ui";
 import { fmt } from "../state/derived";
 import { Payouts, VerificationQueue } from "./AdminReview";
 import { downloadCsv, toCsv } from "../lib/csv";
@@ -16,6 +16,7 @@ const TABS = [
   { id: "verification", label: "Verification" },
   { id: "payouts", label: "Payouts" },
   { id: "waitlist", label: "Waitlist" },
+  { id: "access", label: "Access" },
   { id: "log", label: "Audit log" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
@@ -55,6 +56,7 @@ export function Admin() {
       {tab === "verification" && <VerificationQueue />}
       {tab === "payouts" && <Payouts />}
       {tab === "waitlist" && <Waitlist />}
+      {tab === "access" && <Access />}
       {tab === "log" && <AuditLog />}
     </div>
   );
@@ -331,9 +333,97 @@ const LOG_LABEL = {
   verification_rejected: { text: "Rejected", icon: <CircleX size={16} /> },
   payout_recorded: { text: "Payout", icon: <Banknote size={16} /> },
   waitlist_exported: { text: "Waitlist download", icon: <Download size={16} /> },
+  private_mode_on: { text: "Private mode on", icon: <Lock size={16} /> },
+  private_mode_off: { text: "Private mode off", icon: <LockOpen size={16} /> },
+  invite_added: { text: "Invited", icon: <UserPlus size={16} /> },
+  invite_removed: { text: "Invite removed", icon: <UserMinus size={16} /> },
 } as const;
 
-/** Every admin action, newest first. Entries can't be edited or deleted from the app. */
+/** Private mode switch and the invite list (team and testers who can use the app while it's private). */
+function Access() {
+  const data = useQuery(api.access.overview);
+  const setPrivateMode = useMutation(api.access.setPrivateMode);
+  const invite = useMutation(api.access.invite);
+  const removeInvite = useMutation(api.access.removeInvite);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<keyof typeof WAITLIST_ROLE>("member");
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (data === undefined) return <SkeletonLines />;
+
+  const toggle = (on: boolean) => {
+    const ask = on
+      ? "Turn on private mode? The public will only see the waitlist, and only admins and invited emails can sign up and use the app."
+      : "Turn off private mode? Anyone will be able to create an account and use Kalorax.";
+    if (confirm(ask)) void setPrivateMode({ on });
+  };
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setNote(null);
+    try {
+      const res = await invite({ email, role });
+      setNote(res.alreadyInvited ? `${email.trim()} was already invited.` : res.emailed ? `Invited ${email.trim()} and sent them an invite email.` : `Invited ${email.trim()}. Email isn't set up, so tell them to sign up at kalorax.netlify.app with this address.`);
+      setEmail("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^.*ConvexError: /, "").replace(/\s*Called by client$/, "") : "Couldn't invite.");
+    }
+  };
+
+  return (
+    <section>
+      <div className={`card access-mode${data.privateMode ? " is-private" : ""}`}>
+        <div className="grow">
+          <h2 className="row">{data.privateMode ? <Lock size={18} /> : <LockOpen size={18} />} {data.privateMode ? "Private mode is on" : "Private mode is off"}</h2>
+          <p className="small muted">
+            {data.privateMode
+              ? "The public sees only the waitlist. Only admins and the people below can create an account or use the app; anyone else who signs in sees a \"private testing\" screen."
+              : "Anyone can create an account and use Kalorax. Turn this on to show the public only the waitlist while you test with your team."}
+          </p>
+        </div>
+        <Switch label="Private mode" checked={data.privateMode} onChange={toggle} />
+      </div>
+
+      <h2 className="section-title">Invite your team and testers</h2>
+      <form className="row admin-toolbar" onSubmit={add}>
+        <input type="email" required placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Email to invite" className="grow" />
+        <select value={role} onChange={(e) => setRole(e.target.value as keyof typeof WAITLIST_ROLE)} aria-label="Role">
+          {Object.entries(WAITLIST_ROLE).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </select>
+        <button className="btn btn-primary"><UserPlus size={16} /> Invite</button>
+      </form>
+      {note && <p className="small" role="status">{note}</p>}
+      {error && <p className="small error" role="alert">{error}</p>}
+      <p className="small muted">Admins (the emails in ADMIN_EMAILS) always have access. You can also invite people from the Waitlist tab. Invited people sign up with exactly this email.</p>
+
+      {data.invites.length === 0 ? (
+        <div className="card empty-state"><h2>No one invited yet</h2><p className="muted">Invited people can use the app while private mode is on.</p></div>
+      ) : (
+        <div className="card table-wrap">
+          <table className="table data-table">
+            <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Invited</th><th><span className="sr-only">Remove</span></th></tr></thead>
+            <tbody>
+              {data.invites.map((i) => (
+                <tr key={i.email}>
+                  <td>{i.email}</td>
+                  <td className="small">{WAITLIST_ROLE[i.role]}</td>
+                  <td className="small">{i.joined ? <span className="tag tag-breakfast">Has an account</span> : <span className="muted">Not signed up yet</span>}</td>
+                  <td className="small muted">{ago(i.invitedAt)}</td>
+                  <td className="num">
+                    <button className="btn btn-ghost btn-small" onClick={() => { if (confirm(`Remove the invite for ${i.email}? While private mode is on, they won't be able to use the app.`)) void removeInvite({ email: i.email }); }}>
+                      <UserMinus size={15} /> Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 const WAITLIST_ROLE = { member: "Member", student: "Student", dietitian: "Dietitian" } as const;
 
 /** The waitlist as CSV. A cell starting with = + - @ gets a leading ' so spreadsheets don't run it as a formula. */
@@ -345,7 +435,10 @@ export function waitlistCsv(rows: Array<{ email: string; role: keyof typeof WAIT
 /** Everyone who joined the waitlist from the landing page, with a CSV download (logged in the audit log). */
 function Waitlist() {
   const rows = useQuery(api.waitlist.list);
+  const access = useQuery(api.access.overview);
   const recordExport = useMutation(api.waitlist.recordExport);
+  const invite = useMutation(api.access.invite);
+  const invited = new Set(access?.invites.map((i) => i.email) ?? []);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   if (rows === undefined) return <SkeletonLines />;
@@ -381,13 +474,20 @@ function Waitlist() {
       ) : (
         <div className="card table-wrap">
           <table className="table data-table">
-            <thead><tr><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
+            <thead><tr><th>Email</th><th>Role</th><th>Joined</th><th><span className="sr-only">Invite</span></th></tr></thead>
             <tbody>
               {shown.map((r) => (
                 <tr key={r.id}>
                   <td>{r.email}</td>
                   <td className="small">{WAITLIST_ROLE[r.role]}</td>
                   <td className="small muted" title={new Date(r.joinedAt).toLocaleString("en-NG")}>{ago(r.joinedAt)}</td>
+                  <td className="num">
+                    {invited.has(r.email) ? (
+                      <span className="small muted"><Check size={14} aria-hidden /> Invited</span>
+                    ) : (
+                      <button className="btn btn-ghost btn-small" onClick={() => void invite({ email: r.email, role: r.role })}><UserPlus size={15} /> Invite</button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -399,12 +499,13 @@ function Waitlist() {
   );
 }
 
+/** Every admin action, newest first. Entries can't be edited or deleted from the app. */
 function AuditLog() {
   const rows = useQuery(api.admin.log);
   if (rows === undefined) return <SkeletonLines />;
   return (
     <section>
-      <p className="small muted">Every approval, rejection, payout and waitlist download, with the admin who did it. Entries can't be changed or removed from the app.</p>
+      <p className="small muted">Every approval, rejection, payout, waitlist download, invite and private-mode change, with the admin who did it. Entries can't be changed or removed from the app.</p>
       {rows.length === 0 ? (
         <div className="card empty-state"><h2>No admin actions yet</h2><p className="muted">They'll be listed here as admins approve, reject and pay out.</p></div>
       ) : (

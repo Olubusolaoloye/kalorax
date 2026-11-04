@@ -33,6 +33,7 @@ Kalorax runs in two modes:
 | `verification.ts` | Upload a document, submit for review, admin review queue and approve/reject |
 | `importLocal.ts` | One-time import of data saved on a device before accounts |
 | `waitlist.ts` | Public landing-page waitlist (`join`, one entry per email). New joiners get a "you're on the list" email through Resend when `AUTH_RESEND_KEY` is set, at most 60 an hour. Admins see everyone under **Admin → Waitlist** (`list`) and can download a CSV. Each download is noted in the audit log (`recordExport`) |
+| `access.ts` | Private mode and invites. Admins switch private mode under **Admin → Access**. While it's on, the public home page shows only the waitlist, and only admins (`ADMIN_EMAILS`) and invited emails can create an account (checked in `auth.ts` when an account is created) or use the app (checked in `requireUser`). Anyone else who signs in sees a "private testing" screen. Admins invite from the Access or Waitlist tab, and invited people get an email when Resend is set up. Every change goes in the audit log |
 | `helpers.ts`, `validators.ts` | Auth checks, ownership checks, input validation, `logAdminAction` (writes the admin audit log in the same transaction as the action) |
 | `backend.test.ts` | Tests (run with `npm test`) |
 
