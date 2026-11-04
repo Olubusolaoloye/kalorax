@@ -1,12 +1,12 @@
 import { NotebookPen, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { FEELINGS, NOTE_TAGS, noteKey, useStore, type NoteSlot } from "../state/store";
+import { FEELINGS, NOTE_TAGS, noteKey, useStore, type DiaryNote, type NoteSlot } from "../state/store";
 
 const MAX_TEXT = 500;
 
 /** "How did you feel?" note for a meal, or the whole day when slot is "Day". */
-export function NoteCard({ date, slot }: { date: string; slot: NoteSlot }) {
-  const { notes, setNote } = useStore();
+export function NoteCard({ date, slot, notes }: { date: string; slot: NoteSlot; notes: Record<string, DiaryNote> }) {
+  const { setNote } = useStore();
   const note = notes[noteKey(date, slot)];
   const [editing, setEditing] = useState(false);
   const [feeling, setFeeling] = useState<number | undefined>(note?.feeling);

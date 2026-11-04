@@ -35,7 +35,7 @@ export async function dietitianCard(ctx: Ctx, dietitianId: Id<"users">): Promise
   ]);
   return {
     id: dietitianId,
-    name: profile?.name ?? "Nutrintel dietitian",
+    name: profile?.name ?? "Kalorax dietitian",
     bio: dp?.bio ?? "",
     languages: dp?.languages ?? ["English"],
     yearsExperience: dp?.yearsExperience ?? 0,
@@ -52,10 +52,15 @@ export async function enrolmentFor(ctx: Ctx, id: Id<"enrolments">, userId: Id<"u
   return e;
 }
 
+/** A programme chat shows its latest 200 messages (like member chats). */
+const THREAD_LIMIT = 200;
+
 export async function threadFor(ctx: Ctx, enrolmentId: Id<"enrolments">, viewerId: Id<"users">): Promise<ThreadMessage[]> {
-  const rows = await ctx.db.query("messages").withIndex("by_enrolment", (q) => q.eq("enrolmentId", enrolmentId)).collect();
+  const rows = (
+    await ctx.db.query("messages").withIndex("by_enrolment_sent", (q) => q.eq("enrolmentId", enrolmentId)).order("desc").take(THREAD_LIMIT)
+  ).reverse();
   const names = new Map<string, string>();
-  for (const id of new Set(rows.map((r) => r.senderId))) names.set(id, (await getProfile(ctx, id))?.name ?? "Nutrintel member");
+  for (const id of new Set(rows.map((r) => r.senderId))) names.set(id, (await getProfile(ctx, id))?.name ?? "Kalorax member");
   return rows.map((m) => ({ id: m._id, fromMe: m.senderId === viewerId, senderName: names.get(m.senderId)!, text: m.text, sentAt: new Date(m.sentAt).toISOString() }));
 }
 
@@ -138,10 +143,9 @@ export const myEnrolments = query({
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
     const rows = (await ctx.db.query("enrolments").withIndex("by_member", (q) => q.eq("memberId", userId)).collect()).filter((e) => e.status !== "cancelled");
-    const out = [];
-    for (const e of rows.sort((a, b) => b.createdAt - a.createdAt)) {
+    return Promise.all(rows.sort((a, b) => b.createdAt - a.createdAt).map(async (e) => {
       const messages = await threadFor(ctx, e._id, userId);
-      out.push({
+      return {
         id: e._id as string,
         programmeId: e.programmeId,
         priceNaira: e.priceNaira,
@@ -155,9 +159,8 @@ export const myEnrolments = query({
         messages,
         unread: messages.filter((m) => !m.fromMe && Date.parse(m.sentAt) > (e.memberReadAt ?? 0)).length,
         demoPayment: !!e.demoPayment,
-      });
-    }
-    return out;
+      };
+    }));
   },
 });
 
@@ -236,12 +239,21 @@ async function chatHeader(ctx: QueryCtx, e: Doc<"enrolments">, userId: Id<"users
   return {
     id: e._id as string,
     role,
-    name: other?.name ?? (role === "member" ? "Your dietitian" : "Nutrintel member"),
+    name: other?.name ?? (role === "member" ? "Your dietitian" : "Kalorax member"),
     programme: programme ? `${programme.emoji} ${programme.name}` : "Programme",
     status: e.status,
     endedByMe: !!(role === "member" ? e.memberEndedAt : e.dietitianEndedAt),
     endedByThem: !!(role === "member" ? e.dietitianEndedAt : e.memberEndedAt),
   };
+}
+
+/** Newest message in a programme chat, and how many from the other side arrived after `readAt`. */
+export async function chatActivity(ctx: Ctx, enrolmentId: Id<"enrolments">, viewerId: Id<"users">, readAt: number) {
+  const [last, after] = await Promise.all([
+    ctx.db.query("messages").withIndex("by_enrolment_sent", (q) => q.eq("enrolmentId", enrolmentId)).order("desc").first(),
+    ctx.db.query("messages").withIndex("by_enrolment_sent", (q) => q.eq("enrolmentId", enrolmentId).gt("sentAt", readAt)).collect(),
+  ]);
+  return { last, unread: after.filter((m) => m.senderId !== viewerId).length };
 }
 
 /** Running programmes the user is in (as member or dietitian): pinned at the top of Messages until both sides end them. */
@@ -253,20 +265,22 @@ export const programmeChats = query({
       ctx.db.query("enrolments").withIndex("by_member", (q) => q.eq("memberId", userId)).collect(),
       ctx.db.query("enrolments").withIndex("by_dietitian", (q) => q.eq("dietitianId", userId)).collect(),
     ]);
-    const out = [];
-    for (const e of [...asMember, ...asDietitian].filter((x) => x.status === "active" && !x.memberDeleted)) {
-      const head = await chatHeader(ctx, e, userId);
-      const rows = await ctx.db.query("messages").withIndex("by_enrolment", (q) => q.eq("enrolmentId", e._id)).collect();
-      const readAt = (head.role === "member" ? e.memberReadAt : e.dietitianReadAt) ?? 0;
-      const last = rows[rows.length - 1];
-      out.push({
-        ...head,
-        unread: rows.filter((m) => m.senderId !== userId && m.sentAt > readAt).length,
-        lastText: last ? last.text : "",
-        lastFromMe: last ? last.senderId === userId : false,
-        lastAt: new Date(last?.sentAt ?? e.paidAt ?? e.createdAt).toISOString(),
-      });
-    }
+    const out = await Promise.all(
+      [...asMember, ...asDietitian]
+        .filter((x) => x.status === "active" && !x.memberDeleted)
+        .map(async (e) => {
+          const head = await chatHeader(ctx, e, userId);
+          const readAt = (head.role === "member" ? e.memberReadAt : e.dietitianReadAt) ?? 0;
+          const { last, unread } = await chatActivity(ctx, e._id, userId, readAt);
+          return {
+            ...head,
+            unread,
+            lastText: last ? last.text : "",
+            lastFromMe: last ? last.senderId === userId : false,
+            lastAt: new Date(last?.sentAt ?? e.paidAt ?? e.createdAt).toISOString(),
+          };
+        }),
+    );
     return out.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
   },
 });

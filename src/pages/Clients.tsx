@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Thread } from "../components/Thread";
 import { Avatar } from "../components/Layout";
-import { Card, Locked, PageHeader, SampleNotice, StatCard, Switch } from "../components/ui";
+import { Card, Locked, PageHeader, SampleNotice, SkeletonLines, SkeletonPage, StatCard, Switch } from "../components/ui";
 import { CUISINES, foodById, type Cuisine } from "../data/foods";
 import { LANGUAGES, PLATFORM_FEE_PERCENT, PROGRAMMES, programmeById } from "../data/programmes";
 import { ALLERGENS, recipeById, type Allergen } from "../data/recipes";
@@ -86,7 +86,7 @@ function ClientList() {
   const { clients } = useInterventions();
   const today = todayIso();
   const [show, setShow] = useState<"active" | "completed">("active");
-  if (clients === undefined) return <p className="muted">Loading…</p>;
+  if (clients === undefined) return <SkeletonLines />;
   const list = (clients ?? []).filter((c) => (show === "active" ? c.status === "active" : c.status === "completed"));
   const withFlags = list.map((c) => ({ c, flags: clientFlags(c, today) })).sort((a, b) => b.flags.length - a.flags.length || a.c.name.localeCompare(b.c.name));
   const needAttention = withFlags.filter((x) => x.flags.length > 0).length;
@@ -167,7 +167,7 @@ function PracticeSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!practice]);
 
-  if (practice === undefined) return <p className="muted">Loading…</p>;
+  if (practice === undefined) return <SkeletonLines />;
   if (!practice) return null;
   const offering = (id: string) => practice.offerings.find((o) => o.programmeId === id);
 
@@ -202,7 +202,7 @@ function PracticeSettings() {
             <input inputMode="numeric" value={years} onChange={(e) => setYears(e.target.value.replace(/\D/g, ""))} />
           </label>
           <h3>Payout account</h3>
-          <p className="small muted" style={{ marginTop: 0 }}>Nutrintel pays your share by bank transfer. Only Nutrintel admins can see this.</p>
+          <p className="small muted" style={{ marginTop: 0 }}>Kalorax pays your share by bank transfer. Only Kalorax admins can see this.</p>
           <div className="form-grid">
             <label className="field"><span>Bank</span><input value={bank.bankName} onChange={(e) => setBank({ ...bank, bankName: e.target.value })} placeholder="e.g. GTBank" /></label>
             <label className="field"><span>Account number</span><input inputMode="numeric" maxLength={10} value={bank.accountNumber} onChange={(e) => setBank({ ...bank, accountNumber: e.target.value.replace(/\D/g, "") })} placeholder="10 digits" /></label>
@@ -215,7 +215,7 @@ function PracticeSettings() {
 
       <section>
         <h2 className="section-title">Programmes you offer</h2>
-        <p className="small muted" style={{ marginTop: 0 }}>Set your own price within each range. Nutrintel keeps {PLATFORM_FEE_PERCENT}%; price changes apply to new clients only.</p>
+        <p className="small muted" style={{ marginTop: 0 }}>Set your own price within each range. Kalorax keeps {PLATFORM_FEE_PERCENT}%; price changes apply to new clients only.</p>
         {offerSave.note}
         <div className="stack">
           {PROGRAMMES.map((p) => {
@@ -257,7 +257,7 @@ function PracticeSettings() {
 
 function EarningsPanel() {
   const { practice } = useInterventions();
-  if (practice === undefined) return <p className="muted">Loading…</p>;
+  if (practice === undefined) return <SkeletonLines />;
   if (!practice) return null;
   const e = practice.earnings;
   return (
@@ -270,7 +270,7 @@ function EarningsPanel() {
       </div>
       <Card title="How payouts work">
         <ul className="check-list small">
-          <li>Members pay Nutrintel through Paystack when they start a programme.</li>
+          <li>Members pay Kalorax through Paystack when they start a programme.</li>
           <li>Your share ({100 - PLATFORM_FEE_PERCENT}%) is paid to your bank account every week, by transfer.</li>
           <li>{practice.payout ? `Paying to ${practice.payout.bankName} ••••${practice.payout.accountNumber.slice(-4)} (${practice.payout.accountName}).` : "Add your payout account under Programmes & prices."}</li>
         </ul>
@@ -293,7 +293,7 @@ export function ClientPage() {
   return (
     <DietitianOnly>
       {c === undefined ? (
-        <div className="page"><p className="muted">Loading…</p></div>
+        <SkeletonPage />
       ) : c === null ? (
         <div className="page"><p>Client not found. <Link to="/clients" className="link">All clients</Link></p></div>
       ) : (
@@ -329,7 +329,7 @@ export function ClientPage() {
               )}
             </div>
           </div>
-          <SampleNotice>Clinical decisions are yours. Nutrintel's food values are sample estimates until the Nigerian food composition tables are loaded.</SampleNotice>
+          <SampleNotice>Clinical decisions are yours. Kalorax's food values are sample estimates until the Nigerian food composition tables are loaded.</SampleNotice>
         </div>
       )}
     </DietitianOnly>

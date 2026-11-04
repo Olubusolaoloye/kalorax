@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Nutrintel design system — premium edition
+   Kalorax design system — premium edition
    Deep forest ink + electric lime, warm porcelain surfaces, glass navigation.
    ========================================================================== */
 :root {
@@ -322,7 +322,7 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 /* ---------- Ring, bars, segments ---------- */
 .ring { position: relative; width: 150px; height: 150px; flex-shrink: 0; animation: pop 0.6s var(--ease) both; }
 .ring-track { fill: none; stroke: var(--surface-sunk); stroke-width: 11; }
-.ring-value { fill: none; stroke: var(--lime-2); stroke-width: 11; stroke-linecap: round; transition: stroke-dasharray 0.8s var(--ease); }
+.ring-value { fill: none; stroke: var(--lime-2); stroke-width: 11; stroke-linecap: round; transition: stroke-dasharray 1.1s var(--ease) 0.15s; }
 .ring-value.over { stroke: var(--tile-protein) !important; }
 .ring-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .ring-text strong { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.04em; }
@@ -515,6 +515,9 @@ button.food-row:active { transform: scale(0.99); }
 .mobile-top a { text-decoration: none; color: inherit; }
 .brand { display: flex; align-items: center; gap: 0.55rem; font-weight: 800; font-size: 1.18rem; letter-spacing: -0.03em; text-decoration: none; color: inherit; }
 .brand img { border-radius: 10px; box-shadow: var(--shadow-sm); }
+/* Kalorax logo: the plate and letters take the text colour (ink, or cream in dark mode). */
+.logo { display: inline-flex; align-items: center; gap: 0.5em; color: inherit; line-height: 0; }
+.logo svg { display: block; flex-shrink: 0; }
 .avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: linear-gradient(135deg, #ffe08a, var(--tile-carbs)); color: var(--on-tile); font-weight: 800; flex-shrink: 0; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5); }
 .profile-chip { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; color: inherit; min-width: 0; }
 .profile-chip strong { display: block; }
@@ -1372,3 +1375,25 @@ fieldset.field { border: 0; padding: 0; min-width: 0; }
 .pro-pay .seg { flex-wrap: wrap; }
 .locked .pro-pay { justify-items: center; }
 .pro-history { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+
+/* ---------- Skeleton loading ---------- */
+.sk { display: block; background: var(--surface-sunk); border-radius: 10px; animation: shimmer 1.4s ease-in-out infinite; }
+.sk-title { width: 45%; height: 1.9rem; margin: 1.25rem 0 0.5rem; }
+.sk-sub { width: 30%; height: 0.9rem; margin-bottom: 1.25rem; }
+.sk-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+.sk-tile { height: 84px; border-radius: var(--radius-lg); }
+.sk-list { display: grid; gap: 0.9rem; }
+.sk-row { display: flex; align-items: center; gap: 0.75rem; }
+.sk-dot { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; }
+.sk-line { height: 0.8rem; width: 80%; }
+.sk-line.short { width: 45%; margin-top: 0.4rem; }
+.sk-page .card { margin-bottom: 1rem; }
+/* Skeletons appear at once (no page fade-in); only the shimmer moves. */
+.sk-page > *:not(.sk) { animation: none; }
+.chat-body .sk-list { padding: 0.5rem 0; }
+@media (max-width: 639px) { .sk-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- Long lists ----------
+   Rows below the screen aren't laid out or painted until you scroll near them (the browser's own
+   virtualization). "auto" remembers each row's real height once it has been shown. */
+.food-rows > li { content-visibility: auto; contain-intrinsic-size: auto 76px; }

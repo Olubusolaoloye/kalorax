@@ -13,7 +13,7 @@ describe("programmes", () => {
 });
 
 describe("payments", () => {
-  it("splits the price into Nutrintel's fee and the dietitian's payout", () => {
+  it("splits the price into Kalorax's fee and the dietitian's payout", () => {
     expect(splitPayment(30000)).toEqual({ price: 30000, fee: 6000, payout: 24000 });
     expect(splitPayment(12345, 15)).toEqual({ price: 12345, fee: 1852, payout: 10493 });
   });

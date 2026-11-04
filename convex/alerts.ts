@@ -49,8 +49,8 @@ export const claimMessageAlert = internalMutation({
       const e = id && (await ctx.db.get(id));
       if (!e || e.memberDeleted) return null;
       const readAt = (e.memberId === to ? e.memberReadAt : e.dietitianReadAt) ?? 0;
-      unread = (await ctx.db.query("messages").withIndex("by_enrolment", (q) => q.eq("enrolmentId", e._id)).collect())
-        .filter((m) => m.senderId === from && m.sentAt > readAt);
+      unread = (await ctx.db.query("messages").withIndex("by_enrolment_sent", (q) => q.eq("enrolmentId", e._id).gt("sentAt", readAt)).collect())
+        .filter((m) => m.senderId === from);
       url = `/messages?p=${e._id}`;
     }
     // Read already, or a newer message will send its own alert.
@@ -78,7 +78,7 @@ export const claimMessageAlert = internalMutation({
     if (!delivery) return null;
     if (delivery.whatsapp) {
       // No message text on WhatsApp either: just who wrote.
-      delivery.whatsappText = `${name} sent you ${count > 1 ? `${count} messages` : "a message"} on Nutrintel. Open the app to reply.`;
+      delivery.whatsappText = `${name} sent you ${count > 1 ? `${count} messages` : "a message"} on Kalorax. Open the app to reply.`;
       await ctx.db.insert("reminderLog", { userId: to, key: waKey, sentAt: Date.now() });
     }
     return delivery;

@@ -1,4 +1,4 @@
-// On-device reminders (no account): checks every 30 seconds while Nutrintel is open and shows a
+// On-device reminders (no account): checks every 30 seconds while Kalorax is open and shows a
 // notification when something is due. Accounts get server-sent push and WhatsApp instead.
 import { useEffect, useRef } from "react";
 import { dailyWaterTargetMl } from "../lib/nutrition";
@@ -7,7 +7,7 @@ import { showNotification } from "../lib/push";
 import { REMINDER_MEALS, SNOOZE_MINUTES, dueReminders, localParts, type ReminderContext } from "../lib/reminders";
 import { portionOf, useStore } from "./store";
 
-const SENT_KEY = "nutrintel:reminders-sent";
+const SENT_KEY = "kalorax:reminders-sent";
 const KEEP_MS = 3 * 24 * 3600_000;
 
 function readSent(): Record<string, number> {

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CsvImportSheet, inBatches } from "../components/CsvImport";
 import { NoteCard } from "../components/NoteCard";
-import { MacroTiles, MealTag, NutrientChips, PageHeader, StatCard, Thumb } from "../components/ui";
+import { MacroTiles, MealTag, NutrientChips, PageHeader, SkeletonLines, StatCard, Thumb } from "../components/ui";
 import { foodById, nutrientsFor } from "../data/foods";
 import { diaryTemplate, parseDiaryCsv } from "../lib/csvImport";
 import { dailyTotals, fmt } from "../state/derived";
@@ -14,7 +14,7 @@ const pct = (now: number, before: number, beforeCount: number) =>
   beforeCount >= 5 && before > 0 ? ((now - before) / before) * 100 : null;
 
 export function Diary() {
-  const { diary, notes, removeDiaryEntry, addDiaryEntries } = useStore();
+  const { useRange, removeDiaryEntry, addDiaryEntries } = useStore();
   const [date, setDate] = useState(todayIso());
   const [view, setView] = useState<"day" | "week">("day");
   const [importing, setImporting] = useState(false);
@@ -22,7 +22,10 @@ export function Diary() {
   const isToday = date === today;
 
   const week = weekDates(date);
-  const prevWeek = new Set(weekDates(shiftDate(date, -7)));
+  const prevWeekDates = weekDates(shiftDate(date, -7));
+  const prevWeek = new Set(prevWeekDates);
+  // This week and last (for the comparison), fetched from the server if they're older than the recent months the app keeps.
+  const { diary, notes, loading } = useRange(prevWeekDates[0], week[6]);
   const weekSet = new Set(week);
   const weekTotals = dailyTotals(diary.filter((e) => weekSet.has(e.date)));
   const prevEntries = diary.filter((e) => prevWeek.has(e.date));
@@ -63,11 +66,11 @@ export function Diary() {
           columns={[
             { name: "date", hint: "YYYY-MM-DD or DD/MM/YYYY, today or earlier" },
             { name: "meal", hint: "Breakfast, Lunch, Dinner or Snack" },
-            { name: "food", hint: "a food or recipe name from Nutrintel, e.g. Jollof rice" },
+            { name: "food", hint: "a food or recipe name from Kalorax, e.g. Jollof rice" },
             { name: "portion or grams", hint: "optional, e.g. \"1 plate\" or 250; otherwise the usual portion" },
             { name: "time", hint: "optional, e.g. 08:30" },
           ]}
-          templateName="nutrintel-food-log.csv"
+          templateName="kalorax-food-log.csv"
           template={() => diaryTemplate(today)}
           parse={(text) => parseDiaryCsv(text, today)}
           headings={["Date", "Meal", "Food", "Amount", "Calories"]}
@@ -91,7 +94,9 @@ export function Diary() {
         <StatCard icon={<Droplet size={20} />} tone="fat" label="Fat this week" value={fmt(weekTotals.fat)} unit="g" delta={pct(weekTotals.fat, prevTotals.fat, n)} />
       </div>
 
-      {view === "week" ? (
+      {loading ? (
+        <div className="card"><SkeletonLines rows={4} /></div>
+      ) : view === "week" ? (
         <WeekTable
           rows={diary.filter((e) => weekSet.has(e.date)).sort((a, b) => (a.date + (a.loggedAt ?? "")).localeCompare(b.date + (b.loggedAt ?? "")))}
           thoughts={thoughts}
@@ -131,13 +136,13 @@ export function Diary() {
                     })}
                   </ul>
                 )}
-                <NoteCard key={`${date}-${meal}`} date={date} slot={meal} />
+                <NoteCard key={`${date}-${meal}`} date={date} slot={meal} notes={notes} />
               </section>
             );
           })}
           <section>
             <div className="section-title"><h2>Day reflection</h2></div>
-            <NoteCard key={`${date}-day`} date={date} slot="Day" />
+            <NoteCard key={`${date}-day`} date={date} slot="Day" notes={notes} />
           </section>
         </div>
       )}

@@ -201,12 +201,26 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_enrolment", ["enrolmentId"]),
 
+  /** Real visitors' page speed (Core Web Vitals), sent by the browser. No account or personal details. */
+  vitals: defineTable({
+    metric: v.union(v.literal("LCP"), v.literal("INP"), v.literal("CLS"), v.literal("FCP"), v.literal("TTFB")),
+    value: v.number(),
+    rating: v.union(v.literal("good"), v.literal("needs-improvement"), v.literal("poor")),
+    /** The page, with ids replaced by ":id" (e.g. "/clients/:id"). */
+    path: v.string(),
+    device: v.union(v.literal("mobile"), v.literal("desktop")),
+    at: v.number(),
+  }).index("by_at", ["at"]),
+
   messages: defineTable({
     enrolmentId: v.id("enrolments"),
     senderId: v.id("users"),
     text: v.string(),
     sentAt: v.number(),
-  }).index("by_enrolment", ["enrolmentId"]),
+  })
+    .index("by_enrolment", ["enrolmentId"])
+    // Newest message and unread messages without reading the whole chat.
+    .index("by_enrolment_sent", ["enrolmentId", "sentAt"]),
 
   /** Member-to-member chats. a < b (by id) so each pair has one conversation. */
   conversations: defineTable({

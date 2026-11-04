@@ -30,9 +30,13 @@ function monthGrid(year: number, month: number): Array<string | null> {
 }
 
 export function Calendar() {
-  const { plan, events, exercises, addEvent, removeEvent } = useStore();
+  const { useRange, addEvent, removeEvent } = useStore();
   const today = todayIso();
   const [cursor, setCursor] = useState(() => ({ y: new Date().getFullYear(), m: new Date().getMonth() }));
+  const cells = monthGrid(cursor.y, cursor.m);
+  const monthDates = cells.filter((c): c is string => !!c);
+  // This month's plan, events and activities, fetched from the server if it's older than the recent months the app keeps.
+  const { plan, events, exercises } = useRange(monthDates[0], monthDates[monthDates.length - 1]);
   const [selected, setSelected] = useState(today);
   const [show, setShow] = useState<Record<EventType, boolean>>({ meal: true, activity: true, appointment: true });
   const [adding, setAdding] = useState(false);
@@ -54,8 +58,6 @@ export function Calendar() {
     return items.filter((i) => show[i.type]).sort((a, b) => (a.time ?? "99").localeCompare(b.time ?? "99"));
   };
 
-  const cells = monthGrid(cursor.y, cursor.m);
-  const monthDates = cells.filter((c): c is string => !!c);
   const count = (type: EventType) =>
     monthDates.reduce((t, d) => {
       if (type === "meal") return t + Object.keys(plan[d] ?? {}).length;

@@ -34,6 +34,42 @@ function box(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: 
   ctx.fill();
 }
 
+/** The Kalorax mark (ink plate, lime portion, K cut out), drawn at (x, y) with the given size. */
+function logoMark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const m = document.createElement("canvas");
+  m.width = m.height = 256;
+  const g = m.getContext("2d")!;
+  g.fillStyle = INK;
+  g.beginPath();
+  g.arc(128, 128, 112, 0, Math.PI * 2);
+  g.fill();
+  // The served portion between the K's arms.
+  g.save();
+  g.beginPath();
+  g.moveTo(100, 128);
+  g.quadraticCurveTo(150, 112, 176, 20);
+  g.lineTo(300, 20);
+  g.lineTo(300, 236);
+  g.lineTo(188, 236);
+  g.quadraticCurveTo(150, 144, 100, 128);
+  g.clip();
+  g.fillStyle = LIME;
+  g.fillRect(0, 0, 256, 256);
+  g.restore();
+  // Cut the K out (transparent).
+  g.globalCompositeOperation = "destination-out";
+  g.lineWidth = 20;
+  g.beginPath();
+  g.moveTo(100, 0);
+  g.lineTo(100, 256);
+  g.moveTo(100, 128);
+  g.quadraticCurveTo(150, 112, 176, 20);
+  g.moveTo(100, 128);
+  g.quadraticCurveTo(150, 144, 188, 236);
+  g.stroke();
+  ctx.drawImage(m, x, y, size, size);
+}
+
 function text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, size: number, weight: number, color: string, maxWidth?: number) {
   ctx.font = `${weight} ${size}px ${FONT}`;
   ctx.fillStyle = color;
@@ -55,9 +91,8 @@ function frame(ctx: CanvasRenderingContext2D, title: string, subtitle: string, l
   ctx.arc(W - 90, 110, 260, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(195, 238, 106, 0.35)";
   ctx.fill();
-  box(ctx, 80, 96, 76, 76, 22, LIME);
-  text(ctx, "🥗", 98, 150, 40, 400, INK);
-  text(ctx, "Nutrintel", 176, 150, 44, 800, INK);
+  logoMark(ctx, 80, 96, 76);
+  text(ctx, "Kalorax", 176, 150, 44, 800, INK);
   text(ctx, title, 80, 300, 84, 800, INK, W - 160);
   text(ctx, subtitle, 80, 368, 40, 600, MUTED, W - 160);
   ctx.textBaseline = "alphabetic";
@@ -156,6 +191,6 @@ export async function groceryStory(g: SharedGrocery, checked: string[], link: st
     text(ctx, r.qty!, x + colW, y, size * 0.9, 600, MUTED);
     ctx.textAlign = "left";
   });
-  if (rows.length > shown.length) text(ctx, `+ ${rows.length - shown.length} more in the Nutrintel app`, 110, bottom + 10, 26, 700, MUTED);
+  if (rows.length > shown.length) text(ctx, `+ ${rows.length - shown.length} more in the Kalorax app`, 110, bottom + 10, 26, 700, MUTED);
   return toBlob(c);
 }

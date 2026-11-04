@@ -54,7 +54,7 @@ export const planKcalPerDay = (shared: SharedPlan) => {
 
 /** Plain text for WhatsApp and other chat apps. */
 export function planText(shared: SharedPlan, link: string): string {
-  const lines = [`🥗 My Nutrintel meal plan · ${shared.title}`, ""];
+  const lines = [`🥗 My Kalorax meal plan · ${shared.title}`, ""];
   for (let day = 0; day < 7; day++) {
     const items = shared.items.filter((it) => it.day === day);
     if (!items.length) continue;
@@ -67,7 +67,7 @@ export function planText(shared: SharedPlan, link: string): string {
     }
     lines.push("");
   }
-  lines.push(`Plan your week on Nutrintel: ${link}`);
+  lines.push(`Plan your week on Kalorax: ${link}`);
   return lines.join("\n");
 }
 
@@ -121,5 +121,5 @@ export function journeyLines(s: JourneyStats, showWeight: boolean): Array<{ valu
 
 export function journeyText(s: JourneyStats, showWeight: boolean, link: string): string {
   const lines = journeyLines(s, showWeight).map((l) => `• ${l.value} ${l.label}`);
-  return ["💚 My health journey on Nutrintel", "", ...lines, "", `Eat well. Move more. Feel good. ${link}`].join("\n");
+  return ["💚 My health journey on Kalorax", "", ...lines, "", `Eat well. Move more. Feel good. ${link}`].join("\n");
 }

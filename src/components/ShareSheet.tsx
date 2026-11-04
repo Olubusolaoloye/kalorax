@@ -35,7 +35,7 @@ function download(blob: Blob, filename: string) {
 
 /**
  * Share a week's meal plan or a health-journey summary: as text on WhatsApp, as a story image for Instagram
- * (through the phone's share menu), as a download, or (with an account) to another Nutrintel member via `friend`.
+ * (through the phone's share menu), as a download, or (with an account) to another Kalorax member via `friend`.
  */
 export function ShareSheet({ what, title, friend, onClose }: { what: ShareWhat; title: string; friend?: ReactNode; onClose: () => void }) {
   const [showWeight, setShowWeight] = useState(false);
@@ -43,7 +43,7 @@ export function ShareSheet({ what, title, friend, onClose }: { what: ShareWhat; 
   const [status, setStatus] = useState<string | null>(null);
 
   const text = textFor(what, showWeight);
-  const filename = `nutrintel-${what.kind === "plan" ? "meal-plan" : what.kind === "grocery" ? "grocery-list" : "journey"}.png`;
+  const filename = `kalorax-${what.kind === "plan" ? "meal-plan" : what.kind === "grocery" ? "grocery-list" : "journey"}.png`;
 
   // Callers build `what` on each render, so redraw only when its contents change.
   const key = JSON.stringify(what);

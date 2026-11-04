@@ -25,7 +25,7 @@ async function signedIn(t: ReturnType<typeof convexTest>, email: string) {
   return { userId, as: t.withIdentity({ subject: `${userId}|${sessionId}` }) };
 }
 
-beforeEach(() => vi.stubEnv("ADMIN_EMAILS", "admin@nutrintel.ng"));
+beforeEach(() => vi.stubEnv("ADMIN_EMAILS", "admin@kalorax.ng"));
 afterEach(() => vi.unstubAllEnvs());
 
 describe("accounts and profile", () => {
@@ -71,7 +71,7 @@ describe("verification", () => {
   it("an admin approves or rejects, and the profile follows", async () => {
     const t = convexTest(schema, modules);
     const student = await signedIn(t, "tunde@unn.edu.ng");
-    const admin = await signedIn(t, "admin@nutrintel.ng");
+    const admin = await signedIn(t, "admin@kalorax.ng");
     await student.as.mutation(api.profile.create, { ...PROFILE, role: "student", weightKg: 72, credential: "UNN 2022/1234" });
 
     const queue = await admin.as.query(api.verification.listPending, {});
@@ -460,7 +460,7 @@ describe("client tools", () => {
   it("doesn't count demo payments as earnings, and admins record payouts up to the balance", async () => {
     const { t, d } = await paidSetup();
     expect((await d.as.query(api.clients.myPractice, {})).earnings).toMatchObject({ grossNaira: 0, activeClients: 1 });
-    const admin = await signedIn(t, "admin@nutrintel.ng");
+    const admin = await signedIn(t, "admin@kalorax.ng");
     await expect(admin.as.mutation(api.clients.recordPayout, { dietitianId: d.userId, amountNaira: 100, reference: "TRF1" })).rejects.toThrow(/balance/);
     await expect(d.as.query(api.clients.payoutsOverview, {})).rejects.toThrow(/Admins only/);
   });
@@ -489,10 +489,10 @@ describe("member messages", () => {
     const bisi = await member(t, "bisi@example.com", "Bisi");
     const id = await ada.as.mutation(api.social.start, { username: " @Bisi " });
     expect(await bisi.as.mutation(api.social.start, { username: "ada" })).toBe(id);
-    await expect(ada.as.mutation(api.social.start, { username: "nobody" })).rejects.toThrow(/no Nutrintel member/);
+    await expect(ada.as.mutation(api.social.start, { username: "nobody" })).rejects.toThrow(/no Kalorax member/);
     await expect(ada.as.mutation(api.social.start, { username: "ada" })).rejects.toThrow(/your own username/);
     // Email addresses no longer find anyone.
-    await expect(ada.as.mutation(api.social.start, { username: "bisi@example.com" })).rejects.toThrow(/no Nutrintel member/);
+    await expect(ada.as.mutation(api.social.start, { username: "bisi@example.com" })).rejects.toThrow(/no Kalorax member/);
   });
 
   it("sends text and a meal plan, counts unread and marks read", async () => {
@@ -563,7 +563,7 @@ describe("admin dashboard", () => {
 
   it("counts people, activity and messages, without message text", async () => {
     const t = convexTest(schema, modules);
-    const admin = await signedIn(t, "admin@nutrintel.ng");
+    const admin = await signedIn(t, "admin@kalorax.ng");
     const ada = await signedIn(t, "ada@example.com");
     const bisi = await signedIn(t, "bisi@example.com");
     await signedIn(t, "half@example.com"); // never finished onboarding
@@ -599,7 +599,7 @@ describe("admin audit log", () => {
   it("records approvals, rejections and payouts with who did them, and only admins can read it", async () => {
     const t = convexTest(schema, modules);
     const student = await signedIn(t, "tunde@unn.edu.ng");
-    const admin = await signedIn(t, "admin@nutrintel.ng");
+    const admin = await signedIn(t, "admin@kalorax.ng");
     await student.as.mutation(api.profile.create, { ...PROFILE, name: "Tunde", role: "student", weightKg: 72, credential: "UNN 2022/1234" });
     const [req] = await admin.as.query(api.verification.listPending, {});
     await admin.as.mutation(api.verification.review, { id: req._id, decision: "rejected", note: "Matric not found" });
@@ -609,8 +609,8 @@ describe("admin audit log", () => {
 
     const log = await admin.as.query(api.admin.log, {});
     expect(log.map((l) => [l.action, l.by])).toEqual([
-      ["verification_approved", "admin@nutrintel.ng"],
-      ["verification_rejected", "admin@nutrintel.ng"],
+      ["verification_approved", "admin@kalorax.ng"],
+      ["verification_rejected", "admin@kalorax.ng"],
     ]);
     expect(log[1].detail).toBe("Tunde as a student (UNN 2022/1234) · note: Matric not found");
     await expect(student.as.query(api.admin.log, {})).rejects.toThrow(/Admins only/);
@@ -620,10 +620,10 @@ describe("admin audit log", () => {
     const { t, d, enrolmentId } = await paidSetup();
     // Make the demo enrolment a real payment so the dietitian is owed money.
     await t.run((ctx) => ctx.db.patch(enrolmentId, { demoPayment: undefined }));
-    const admin = await signedIn(t, "admin@nutrintel.ng");
+    const admin = await signedIn(t, "admin@kalorax.ng");
     await expect(admin.as.mutation(api.clients.recordPayout, { dietitianId: d.userId, amountNaira: 10_000_000, reference: "TRF0" })).rejects.toThrow(/balance/);
     await admin.as.mutation(api.clients.recordPayout, { dietitianId: d.userId, amountNaira: 1000, reference: "TRF1" });
-    expect(await admin.as.query(api.admin.log, {})).toMatchObject([{ action: "payout_recorded", detail: "₦1,000 to Dr Funke · ref TRF1", by: "admin@nutrintel.ng" }]);
+    expect(await admin.as.query(api.admin.log, {})).toMatchObject([{ action: "payout_recorded", detail: "₦1,000 to Dr Funke · ref TRF1", by: "admin@kalorax.ng" }]);
   });
 });
 
@@ -651,7 +651,7 @@ describe("usernames", () => {
     expect(await a.as.query(api.profile.usernameAvailable, { username: "1ada" })).toMatch(/Start with a letter/);
     expect(await a.as.query(api.profile.usernameAvailable, { username: "ada..o" })).toMatch(/Dots/);
     expect(await a.as.query(api.profile.usernameAvailable, { username: "ad min" })).toMatch(/only letters/);
-    expect(await a.as.query(api.profile.usernameAvailable, { username: "Nutrintel" })).toMatch(/reserved/);
+    expect(await a.as.query(api.profile.usernameAvailable, { username: "Kalorax" })).toMatch(/reserved/);
 
     expect(await a.as.mutation(api.profile.setUsername, { username: "@DevOlu" })).toBe("devolu");
     await expect(b.as.mutation(api.profile.setUsername, { username: "devolu" })).rejects.toThrow(/taken/);
@@ -917,5 +917,75 @@ describe("alarm reminders", () => {
     await expect(ada.as.mutation(api.reminders.sendTest, { alarm: true })).rejects.toThrow(/this device/);
     await ada.as.mutation(api.reminders.savePushSubscription, SUB);
     await ada.as.mutation(api.reminders.sendTest, { alarm: true });
+  });
+});
+
+describe("snapshot size", () => {
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
+  it("carries recent months (and planned days ahead); older days come from history on request", async () => {
+    const t = convexTest(schema, modules);
+    const { userId, as } = await signedIn(t, "ada@example.com");
+    await as.mutation(api.profile.create, { ...PROFILE, role: "consumer", weightKg: 70 });
+    const food = { meal: "Lunch" as const, foodId: "jollof", grams: 300, portionLabel: "1 plate" };
+    await t.run(async (ctx) => {
+      for (const offset of [0, -100, -200]) await ctx.db.insert("diary", { ...food, userId, date: day(offset), loggedAt: new Date().toISOString() });
+      await ctx.db.insert("plan", { userId, date: day(3), meal: "Dinner", recipeId: "jollof-rice" });
+      await ctx.db.insert("weights", { userId, date: day(-300), weightKg: 74 });
+    });
+
+    const s = (await as.query(api.me.snapshot, {}))!;
+    expect(s.historyFrom).toBe(day(-180));
+    expect(s.diary.map((d) => d.date).sort()).toEqual([day(-100), day(0)]);
+    expect(s.plan.map((p) => p.date)).toEqual([day(3)]);
+    // Every weigh-in stays, for the progress chart.
+    expect(s.weights).toHaveLength(2);
+
+    const old = (await as.query(api.me.history, { from: day(-210), to: day(-181) }))!;
+    expect(old.diary.map((d) => d.date)).toEqual([day(-200)]);
+    await expect(as.query(api.me.history, { from: day(-300), to: day(-181) })).rejects.toThrow(/two months/);
+
+    // Only your own rows.
+    const other = await signedIn(t, "bob@example.com");
+    expect((await other.as.query(api.me.history, { from: day(-210), to: day(-181) }))!.diary).toEqual([]);
+    expect(await t.query(api.me.history, { from: day(-210), to: day(-181) })).toBeNull();
+  });
+});
+
+describe("programme chat size", () => {
+  it("shows the newest 200 messages and counts only unread ones from the other side", async () => {
+    const { t, d, m, enrolmentId } = await paidSetup();
+    const start = Date.now() - 1_000_000;
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 205; i++) await ctx.db.insert("messages", { enrolmentId, senderId: d.userId, text: `tip ${i}`, sentAt: start + i * 1000 });
+    });
+    const th = (await m.as.query(api.interventions.programmeThread, { enrolmentId }))!;
+    expect(th.messages).toHaveLength(200);
+    expect(th.messages[0].text).toBe("tip 5");
+    expect(th.messages.at(-1)!.text).toBe("tip 204");
+
+    expect((await m.as.query(api.interventions.programmeChats, {}))[0]).toMatchObject({ unread: 205, lastText: "tip 204", lastFromMe: false });
+    await m.as.mutation(api.interventions.markRead, { enrolmentId });
+    await m.as.mutation(api.interventions.sendMessage, { enrolmentId, text: "Thank you!" });
+    expect((await m.as.query(api.interventions.programmeChats, {}))[0]).toMatchObject({ unread: 0, lastText: "Thank you!", lastFromMe: true });
+    // The dietitian's client list counts the member's new message.
+    expect((await d.as.query(api.clients.myClients, {}))[0].unread).toBe(1);
+  });
+});
+
+describe("real-user speed", () => {
+  it("stores browser reports and shows admins the 75th percentile", async () => {
+    const t = convexTest(schema, modules);
+    const reports = [1000, 1500, 2000, 6000].map((value) => ({ metric: "LCP", value, path: "/home", device: "mobile" }));
+    expect((await t.fetch("/vitals", { method: "POST", body: JSON.stringify(reports) })).status).toBe(204);
+    expect((await t.fetch("/vitals", { method: "POST", body: "nonsense" })).status).toBe(204);
+    expect((await t.fetch("/vitals", { method: "POST", body: JSON.stringify([{ metric: "LCP", value: -1 }]) })).status).toBe(204);
+
+    const member = await signedIn(t, "ada@example.com");
+    await expect(member.as.query(api.vitals.summary, {})).rejects.toThrow();
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    const s = await admin.as.query(api.vitals.summary, {});
+    expect(s.reports).toBe(4);
+    expect(s.metrics.find((m) => m.metric === "LCP")).toMatchObject({ count: 4, p75: 2000, p75Mobile: 2000, rating: "good", goodShare: 0.75 });
   });
 });

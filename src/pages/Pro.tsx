@@ -5,7 +5,7 @@ import { BadgeCheck, Check, CreditCard, Sparkles } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { Card } from "../components/ui";
+import { Card, SkeletonPage } from "../components/ui";
 import { errorText } from "../lib/errors";
 import { fmt } from "../state/derived";
 import { useStore } from "../state/store";
@@ -113,7 +113,7 @@ export function CloudProBanner() {
 
 function CloudProGate({ children }: { children: ReactNode }) {
   const s = useProStatus();
-  if (s === undefined) return <div className="page"><p className="muted">Loading…</p></div>;
+  if (s === undefined) return <SkeletonPage />;
   if (!s || s.active) return <>{children}</>;
   return (
     <div className="page">

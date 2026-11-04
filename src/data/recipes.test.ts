@@ -73,19 +73,26 @@ describe("activity energy", () => {
   });
 });
 
-describe("storage migration after the rename", () => {
-  it("moves old nutrifi: keys to nutrintel: without overwriting newer data", async () => {
-    const { migrateOldStorageKeys } = await import("../state/store");
-    const data = new Map<string, string>([["nutrifi:v1", "old-logs"], ["nutrifi:reminders-sent", "a"], ["nutrintel:reminders-sent", "b"], ["other", "x"]]);
-    const storage = {
+describe("storage migration after the renames", () => {
+  const fakeStorage = (data: Map<string, string>) =>
+    ({
       get length() { return data.size; },
       key: (i: number) => [...data.keys()][i] ?? null,
       getItem: (k: string) => data.get(k) ?? null,
       setItem: (k: string, v: string) => void data.set(k, v),
       removeItem: (k: string) => void data.delete(k),
       clear: () => data.clear(),
-    } as Storage;
-    migrateOldStorageKeys(storage);
-    expect(Object.fromEntries(data)).toEqual({ "nutrintel:v1": "old-logs", "nutrintel:reminders-sent": "b", other: "x" });
+    }) as Storage;
+
+  it("moves nutrintel: and nutrifi: keys to kalorax:, the newer name winning, never overwriting kalorax: data", async () => {
+    const { migrateOldStorageKeys } = await import("../state/store");
+    const data = new Map<string, string>([
+      ["nutrifi:v1", "oldest-logs"], ["nutrintel:v1", "newer-logs"],
+      ["nutrifi:reminders-sent", "a"],
+      ["nutrintel:programmes-preview", "p"], ["kalorax:programmes-preview", "current"],
+      ["other", "x"],
+    ]);
+    migrateOldStorageKeys(fakeStorage(data));
+    expect(Object.fromEntries(data)).toEqual({ "kalorax:v1": "newer-logs", "kalorax:reminders-sent": "a", "kalorax:programmes-preview": "current", other: "x" });
   });
 });

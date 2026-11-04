@@ -145,7 +145,7 @@ export function CloudInterventionsProvider({ children }: { children: ReactNode }
 
 /* ---------------- Preview (no accounts) ---------------- */
 
-const PREVIEW_KEY = "nutrintel:programmes-preview";
+const PREVIEW_KEY = "kalorax:programmes-preview";
 
 interface PreviewEnrolment {
   id: string;

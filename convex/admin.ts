@@ -1,4 +1,4 @@
-// Admin dashboard: what's happening across Nutrintel. Admins only (ADMIN_EMAILS).
+// Admin dashboard: what's happening across Kalorax. Admins only (ADMIN_EMAILS).
 // Counts and trends, never message text or anyone's food log: admins see activity, not private health details.
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";

@@ -1,6 +1,6 @@
 import { Droplet, Flame, Lock, Search, Wheat, Beef } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { photoFor, photoUrl } from "../data/photos";
+import { memo, useEffect, useState, type ReactNode } from "react";
+import { photoFor, photoSources } from "../data/photos";
 import { Link } from "react-router-dom";
 import { fmt } from "../state/derived";
 import type { Meal } from "../state/store";
@@ -10,6 +10,13 @@ export function Ring({ value, max, label, sub }: { value: number; max: number; l
   const c = 2 * Math.PI * r;
   const pct = max > 0 ? Math.min(value / max, 1) : 0;
   const over = value > max;
+  // Start empty and sweep to the value once the ring is on screen (the CSS transition does the motion).
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => (second = requestAnimationFrame(() => setDrawn(true))));
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, []);
   return (
     <div className="ring" role="img" aria-label={`${label}. ${sub}`}>
       <svg viewBox="0 0 120 120" width="150" height="150">
@@ -19,7 +26,7 @@ export function Ring({ value, max, label, sub }: { value: number; max: number; l
           cy="60"
           r={r}
           className={`ring-value${over ? " over" : ""}`}
-          strokeDasharray={`${c * pct} ${c}`}
+          strokeDasharray={`${c * (drawn ? pct : 0)} ${c}`}
           transform="rotate(-90 60 60)"
         />
       </svg>
@@ -86,6 +93,39 @@ export function PageHeader({ title, subtitle, children }: { title: ReactNode; su
   );
 }
 
+/** Grey placeholder shapes shown while a page or its data loads, so the layout appears at once. */
+export function SkeletonLines({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="sk-list" aria-hidden>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="sk-row">
+          <span className="sk sk-dot" />
+          <span className="grow">
+            <span className="sk sk-line" />
+            <span className="sk sk-line short" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A whole page's worth of placeholders: title, a row of tiles and two cards. */
+export function SkeletonPage({ label = "Loading" }: { label?: string }) {
+  return (
+    <div className="page sk-page" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{label}…</span>
+      <div className="sk sk-title" />
+      <div className="sk sk-sub" />
+      <div className="sk-tiles">
+        {[0, 1, 2, 3].map((i) => <span key={i} className="sk sk-tile" />)}
+      </div>
+      <div className="card"><SkeletonLines rows={3} /></div>
+      <div className="card"><SkeletonLines rows={2} /></div>
+    </div>
+  );
+}
+
 export function SearchBox({ value, onChange, placeholder, autoFocus }: { value: string; onChange: (v: string) => void; placeholder: string; autoFocus?: boolean }) {
   return (
     <label className="search-box">
@@ -142,35 +182,39 @@ export function NutrientChips({ m }: { m: Macros }) {
 const THUMB_WIDTH = { "": 240, sm: 160, lg: 960 } as const;
 
 /** Dish photo (Wikimedia Commons) with the emoji as placeholder and fallback. */
-export function Thumb({ emoji, size = "", label, photo }: { emoji: string; size?: "" | "sm" | "lg"; label?: string; photo?: string }) {
+// Memoised: long lists of dishes don't redraw their photos every time other data changes.
+export const Thumb = memo(function Thumb({ emoji, size = "", label, photo }: { emoji: string; size?: "" | "sm" | "lg"; label?: string; photo?: string }) {
   const p = photo ? photoFor(photo) : undefined;
-  const url = p ? photoUrl(p, THUMB_WIDTH[size]) : null;
-  // Status is tied to the URL so a reused thumbnail resets when its dish changes.
-  const [status, setStatus] = useState<{ url: string | null; s: "ok" | "failed" } | null>(null);
-  const state = status && status.url === url ? status.s : "loading";
-  const showImg = url && state !== "failed";
+  const sources = p ? photoSources(p, THUMB_WIDTH[size]) : [];
+  const key = sources[0] ?? null;
+  // Tied to the first URL so a reused thumbnail resets when its dish changes. On error, try the next source.
+  const [status, setStatus] = useState<{ key: string | null; tried: number; ok: boolean } | null>(null);
+  const tried = status && status.key === key ? status.tried : 0;
+  const loaded = !!status && status.key === key && status.ok;
+  const url = sources[tried] ?? null;
   return (
     <span
-      className={`thumb ${size}${showImg ? " has-photo" : ""}${state === "ok" ? " is-loaded" : ""}`}
+      className={`thumb ${size}${url ? " has-photo" : ""}${loaded ? " is-loaded" : ""}`}
       role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
     >
       <span className="thumb-emoji">{emoji}</span>
-      {showImg && (
+      {url && (
         <img
+          key={url}
           src={url}
           alt=""
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
-          onLoad={() => setStatus({ url, s: "ok" })}
-          onError={() => setStatus({ url, s: "failed" })}
+          onLoad={() => setStatus({ key, tried, ok: true })}
+          onError={() => setStatus({ key, tried: tried + 1, ok: false })}
         />
       )}
     </span>
   );
-}
+});
 
 export function MealTag({ meal }: { meal: Meal }) {
   return <span className={`tag tag-${meal.toLowerCase()}`}>{meal}</span>;
@@ -179,7 +223,7 @@ export function MealTag({ meal }: { meal: Meal }) {
 export function Disclaimer() {
   return (
     <p className="disclaimer">
-      Nutrintel supports healthy eating but does not replace advice from your doctor or dietitian.
+      Kalorax supports healthy eating but does not replace advice from your doctor or dietitian.
     </p>
   );
 }

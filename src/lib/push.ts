@@ -82,7 +82,7 @@ export async function showNotification(title: string, body: string, url = "/home
   if (!notificationsSupported() || Notification.permission !== "granted") return;
   // `vibrate`, `renotify` and `actions` exist in browsers but not in TypeScript's NotificationOptions yet.
   const options: NotificationOptions & Record<string, unknown> = {
-    body, icon: "/icon.svg", badge: "/icon.svg", tag, data: { url, alarm, title, body, tag },
+    body, icon: "/icon-192.png", badge: "/badge-96.png", tag, data: { url, alarm, title, body, tag },
     ...(alarm ? { requireInteraction: true, renotify: !!tag, vibrate: ALARM_VIBRATE, actions: [{ action: "done", title: "✓ Done" }, { action: "snooze", title: "⏰ Snooze 10 min" }] } : {}),
   };
   try {

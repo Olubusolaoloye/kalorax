@@ -2,6 +2,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, Mail } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Logo } from "../components/Logo";
 
 /** forgot: ask for a reset code. reset: enter the code and a new password. */
 type Flow = "signIn" | "signUp" | "forgot" | "reset";
@@ -17,13 +18,13 @@ function withTimeout<T>(p: Promise<T>): Promise<T> {
 function friendly(err: unknown, flow: Flow): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (/already exists/i.test(msg)) return "An account with this email already exists. Try signing in.";
-  if (/isn't set up/i.test(msg)) return "Password reset isn't available yet. Please contact hello@nutrintel.ng.";
+  if (/isn't set up/i.test(msg)) return "Password reset isn't available yet. Please contact hello@kalorax.ng.";
   if (flow === "reset" && /InvalidSecret|code|expired|verif/i.test(msg)) return "That code is wrong or has expired. Check the email or ask for a new code.";
   if (/InvalidSecret|InvalidAccountId|Invalid password|could not/i.test(msg))
     return flow === "signIn" ? "That email and password don't match. Please try again." : "We couldn't create your account. Please try again.";
   if (/password/i.test(msg)) return "Please use a password of at least 8 characters.";
   if (/rate|too many/i.test(msg)) return "Too many attempts. Please wait a minute and try again.";
-  if (msg === "timeout") return "We can't reach Nutrintel right now. Check your internet connection and try again.";
+  if (msg === "timeout") return "We can't reach Kalorax right now. Check your internet connection and try again.";
   return "Something went wrong. Please check your connection and try again.";
 }
 
@@ -72,12 +73,12 @@ export function Auth() {
         } catch (err) {
           // Don't reveal whether an account exists; only surface setup and connection problems.
           const m = friendly(err, flow);
-          if (/available yet|reach Nutrintel|Too many/.test(m)) throw err;
+          if (/available yet|reach Kalorax|Too many/.test(m)) throw err;
         }
         setFlow("reset");
         setPassword("");
         setConfirm("");
-        setInfo("If there's a Nutrintel account for this email, we've sent it an 8-digit code. It expires in 15 minutes.");
+        setInfo("If there's a Kalorax account for this email, we've sent it an 8-digit code. It expires in 15 minutes.");
         setBusy(false);
         return;
       }
@@ -110,7 +111,7 @@ export function Auth() {
   return (
     <div className="onboarding">
       <Link to="/" className="landing-brand" style={{ marginBottom: "1rem", textDecoration: "none", color: "inherit" }}>
-        <img src="/icon.svg" alt="" width={32} height={32} /> Nutrintel
+        <Logo size={30} />
       </Link>
       <div className="onboarding-card">
         {recovering && (

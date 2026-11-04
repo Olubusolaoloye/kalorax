@@ -9,7 +9,7 @@ function code(): string {
 
 /**
  * Emails a password-reset code via Resend (https://resend.com).
- * Needs AUTH_RESEND_KEY; AUTH_EMAIL_FROM defaults to "Nutrintel <no-reply@nutrintel.ng>" (a domain verified in Resend).
+ * Needs AUTH_RESEND_KEY; AUTH_EMAIL_FROM defaults to "Kalorax <no-reply@kalorax.ng>" (a domain verified in Resend).
  */
 export const PasswordReset = Email({
   id: "password-reset",
@@ -22,12 +22,13 @@ export const PasswordReset = Email({
     if (!key) throw new Error("Password reset email isn't set up yet.");
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: process.env.AUTH_EMAIL_FROM ?? "Nutrintel <no-reply@nutrintel.ng>",
+        from: process.env.AUTH_EMAIL_FROM ?? "Kalorax <no-reply@kalorax.ng>",
         to: [email],
-        subject: `Your Nutrintel reset code: ${token}`,
-        text: `Your Nutrintel password reset code is ${token}.\n\nIt expires in 15 minutes. If you didn't ask to reset your password, you can ignore this email.`,
+        subject: `Your Kalorax reset code: ${token}`,
+        text: `Your Kalorax password reset code is ${token}.\n\nIt expires in 15 minutes. If you didn't ask to reset your password, you can ignore this email.`,
       }),
     });
     if (!res.ok) throw new Error(`Could not send the reset email (${res.status}).`);

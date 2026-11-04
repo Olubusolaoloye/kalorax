@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { ConvexStoreProvider } from "./state/cloudStore";
 import { CloudInterventionsProvider, PreviewInterventionsProvider } from "./state/interventions";
+import { startVitals } from "./lib/vitals";
 import { LocalStoreProvider, migrateOldStorageKeys } from "./state/store";
 import "./styles.css";
 
@@ -40,6 +41,9 @@ createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </StrictMode>,
 );
+
+// Real-user speed tracking (live site only): reports go to the backend's /vitals route on .convex.site.
+if (convexUrl && import.meta.env.PROD) startVitals(`${convexUrl.replace(/\.convex\.cloud\/?$/, ".convex.site")}/vitals`);
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));

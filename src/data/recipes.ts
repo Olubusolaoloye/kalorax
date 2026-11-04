@@ -1,5 +1,5 @@
 // SAMPLE RECIPES — placeholder nutrition and ₦ price estimates for the prototype, NOT for clinical use.
-// Recipes and values will be written and reviewed by Nutrintel's dietitians.
+// Recipes and values will be written and reviewed by Kalorax's dietitians.
 import type { Meal } from "../state/store";
 import type { Cuisine } from "./foods";
 

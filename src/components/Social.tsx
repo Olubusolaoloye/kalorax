@@ -8,6 +8,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { recipeById } from "../data/recipes";
 import { errorText } from "../lib/errors";
+import { useDebounced } from "../lib/useDebounced";
 import { byCategory, CATEGORY_EMOJI, groceryTotal, naira, qtyLabel, type SharedGrocery } from "../lib/grocery";
 import { applySharedPlan, mealName, planKcalPerDay, SHARE_MEALS, WEEKDAYS, type SharedPlan } from "../lib/share";
 import { fmt } from "../state/derived";
@@ -19,7 +20,8 @@ import { Card } from "./ui";
 export function PeoplePicker({ label, onPick, busy, error, autoFocus }: { label: string; onPick: (username: string) => void; busy: boolean; error: string | null; autoFocus?: boolean }) {
   const [q, setQ] = useState("");
   const clean = q.trim().replace(/^@+/, "").toLowerCase();
-  const results = useQuery(api.social.findPeople, clean.length >= 2 ? { q: clean } : "skip");
+  const search = useDebounced(clean, 250);
+  const results = useQuery(api.social.findPeople, search.length >= 2 ? { q: search } : "skip");
   return (
     <div className="people-picker">
       <form onSubmit={(e) => { e.preventDefault(); if (clean) onPick(clean); }}>
@@ -70,7 +72,7 @@ export function CloudSendToFriend({ payload }: { payload: FriendPayload }) {
   return (
     <div className="share-friend">
       <PeoplePicker
-        label="Send to a Nutrintel friend"
+        label="Send to a Kalorax friend"
         busy={busy}
         error={error}
         onPick={async (username) => {
@@ -115,7 +117,9 @@ export function UsernameCard() {
   const [copied, setCopied] = useState(false);
   const clean = draft.trim().replace(/^@+/, "").toLowerCase();
   const changed = editing && clean !== (profile?.username ?? "");
-  const problem = useQuery(api.profile.usernameAvailable, changed && clean ? { username: clean } : "skip");
+  // Checked once typing pauses; until then it reads "Checking…".
+  const settled = useDebounced(clean, 300);
+  const problem = useQuery(api.profile.usernameAvailable, changed && clean && settled === clean ? { username: clean } : "skip");
   if (!profile) return null;
   const mine = profile.username;
   return (

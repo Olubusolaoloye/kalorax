@@ -31,6 +31,7 @@ import type * as social from "../social.js";
 import type * as usernames from "../usernames.js";
 import type * as validators from "../validators.js";
 import type * as verification from "../verification.js";
+import type * as vitals from "../vitals.js";
 import type * as waitlist from "../waitlist.js";
 
 import type {
@@ -63,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   usernames: typeof usernames;
   validators: typeof validators;
   verification: typeof verification;
+  vitals: typeof vitals;
   waitlist: typeof waitlist;
 }>;
 

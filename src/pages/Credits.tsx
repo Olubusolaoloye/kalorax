@@ -22,10 +22,10 @@ export function Credits() {
       <Link to={profile ? "/me" : "/"} className="btn btn-ghost btn-small"><ArrowLeft size={16} /> Back</Link>
       <h1 style={{ margin: "0.75rem 0 0.5rem" }}>Photo credits</h1>
       <p className="muted">
-        Food photos in Nutrintel come from <a href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">Wikimedia Commons</a>,
+        Food photos in Kalorax come from <a href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">Wikimedia Commons</a>,
         shared by their photographers under public-domain or Creative Commons licences. Thank you to every contributor — many
         of the Nigerian dishes were photographed for the Wiki Loves Africa contests. Tap a photo's name to see its full
-        licence and author details. Photos are shown resized and cropped to fit.
+        licence and author details. Photos are shown resized, cropped to fit and converted to smaller image formats (AVIF or WebP) for faster loading.
       </p>
       <section className="card">
         <ul className="credits">

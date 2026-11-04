@@ -1,8 +1,8 @@
-# Nutrintel — Product Strategy & Plan
+# Kalorax — Product Strategy & Plan
 
 _Draft 1 · October 2026_
 
-This plan reviews Nutrintel from seven angles, the way a full founding team would:
+This plan reviews Kalorax from seven angles, the way a full founding team would:
 
 | Seat | Focus |
 |---|---|
@@ -18,14 +18,14 @@ This plan reviews Nutrintel from seven angles, the way a full founding team woul
 
 ## 1. The idea in one sentence
 
-**Nutrintel is a localised nutrition platform. Everyday users track, plan and improve how they eat. Dietitians and nutrition students get professional calculation tools. People with clinical needs pay for dietitian-led interventions. Vetted food sellers pay to reach them.**
+**Kalorax is a localised nutrition platform. Everyday users track, plan and improve how they eat. Dietitians and nutrition students get professional calculation tools. People with clinical needs pay for dietitian-led interventions. Vetted food sellers pay to reach them.**
 
 That makes it four products in one app. This is the biggest strategic risk, and the plan below is built around managing it:
 
 1. **Consumer app**: BMI, food diary, water, meal schedule, pregnancy and child growth monitors, newsfeed.
 2. **Professional workbench**: BMR, energy requirements, calorie and macro distribution, client management. Dietitians and students only.
 3. **Interventions marketplace**: paid, dietitian-supervised plans for conditions such as diabetes, hypertension, CKD, obesity, PCOS, malnutrition and pregnancy.
-4. **Food product marketplace**: vetted sellers, with Nutrintel paid per sale and for visibility.
+4. **Food product marketplace**: vetted sellers, with Kalorax paid per sale and for visibility.
 
 ---
 
@@ -35,7 +35,7 @@ That makes it four products in one app. This is the biggest strategic risk, and 
 - **Local food composition is a real gap.** Most global apps (MyFitnessPal, Cronometer) cover Nigerian and West African foods such as eba, amala, ogbono soup, moi moi and akara poorly. Owning this data is a lasting advantage.
 - **Pregnancy and child growth fill a public-health gap.** Malnutrition and stunting are major issues in Nigeria and across sub-Saharan Africa, so these features open doors to NGOs, government and donor partners, not just consumers.
 - **Several revenue streams:** subscriptions, interventions, professional seats and marketplace fees.
-- **A professional tier builds credibility.** If dietitians use Nutrintel, consumers trust it.
+- **A professional tier builds credibility.** If dietitians use Kalorax, consumers trust it.
 
 ### ⚠️ Issues to fix in the design
 
@@ -138,7 +138,7 @@ Nutrition misinformation is everywhere. If you aggregate it, you damage trust.
 - Programmes such as **Diabetes Control (12 weeks)**, **Hypertension (DASH, localised)**, **Weight Loss**, **PCOS**, **CKD**, **Pregnancy Nutrition**, **Child Catch-up Growth** and **Sports Nutrition**.
 - Each includes: an intake assessment, a dietitian-set target and plan, weekly check-ins (chat or video), progress tracking, and adjuncts *approved by the dietitian*.
 - Formats: one-off consultation, 4/8/12-week programmes, or group programmes (cheaper, scales better).
-- Dietitians are verified and listed with ratings. Nutrintel takes a platform fee.
+- Dietitians are verified and listed with ratings. Kalorax takes a platform fee.
 
 ### J. Food product marketplace
 - **Vetting pipeline:** seller KYC → product submission → regulatory check (e.g. NAFDAC registration number for packaged foods in Nigeria) → label and nutrient review by a dietitian → approval badge → periodic re-checks and complaint handling.
@@ -185,7 +185,7 @@ Nutrition misinformation is everywhere. If you aggregate it, you damage trust.
 | Consumer Premium | Monthly / yearly subscription | ₦2,000–₦3,500/month; yearly at ~2 months free |
 | Student plan | Discounted pro tools | ₦1,000–₦1,500/month or per semester |
 | Dietitian Pro | Workbench + client tools | ₦5,000–₦10,000/month |
-| Interventions | User pays per programme; Nutrintel keeps 15–30% | ₦10,000–₦60,000 per programme |
+| Interventions | User pays per programme; Kalorax keeps 15–30% | ₦10,000–₦60,000 per programme |
 | Marketplace commission | % of each sale | 8–15% |
 | Featured listings | Sellers pay for visibility | Monthly placement fee |
 | B2B / institutional | HMOs, employers, hospitals, NGOs, schools | Per-seat or per-programme licences |
@@ -260,7 +260,7 @@ Goal: a useful daily habit app plus the pro workbench.
 
 - **Data protection:** comply with the **Nigeria Data Protection Act (2023)**, plus GDPR principles if you expand. Health data counts as *sensitive personal data*, so you need explicit consent, a privacy policy, a data protection officer or contact, and data-minimisation. Data on children and pregnancy needs extra care.
 - **Clinical safety:**
-  - A clear disclaimer: Nutrintel supports, but does not replace, medical care.
+  - A clear disclaimer: Kalorax supports, but does not replace, medical care.
   - Escalation rules: red-flag symptoms in pregnancy, severe acute malnutrition in children, and very low BMI or rapid weight loss trigger "seek care now" messaging.
   - No auto-prescription of adjuncts (see §2).
   - Content and intervention templates reviewed and signed off by a clinical lead dietitian.

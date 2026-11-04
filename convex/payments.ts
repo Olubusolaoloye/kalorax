@@ -17,9 +17,19 @@ function reference(prefix: "nf" | "np") {
 
 const siteUrl = () => (process.env.SITE_URL ?? "").replace(/\/$/, "");
 
+/** Paystack call that gives up after 15 seconds, so a member is never left waiting on a hung request. */
+async function paystackFetch(path: string, init: RequestInit) {
+  try {
+    return await fetch(`${PAYSTACK}${path}`, { ...init, signal: AbortSignal.timeout(15_000) });
+  } catch (err) {
+    console.error("paystack unreachable", path.split("/").slice(0, 3).join("/"), (err as Error).name);
+    throw new ConvexError("We couldn't reach the payment service. Please check your connection and try again.");
+  }
+}
+
 /** Starts a Paystack checkout and returns the page to send the member to. */
 async function paystackCheckout(secret: string, t: { email: string; amountNaira: number; reference: string; callbackPath: string; metadata: Record<string, unknown> }) {
-  const res = await fetch(`${PAYSTACK}/transaction/initialize`, {
+  const res = await paystackFetch("/transaction/initialize", {
     method: "POST",
     headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -41,7 +51,7 @@ async function paystackCheckout(secret: string, t: { email: string; amountNaira:
 
 /** Asks Paystack whether a payment went through; returns the amount in kobo, or null. */
 async function paystackPaidKobo(secret: string, ref: string): Promise<number | null> {
-  const res = await fetch(`${PAYSTACK}/transaction/verify/${encodeURIComponent(ref)}`, { headers: { Authorization: `Bearer ${secret}` } });
+  const res = await paystackFetch(`/transaction/verify/${encodeURIComponent(ref)}`, { headers: { Authorization: `Bearer ${secret}` } });
   const body = (await res.json()) as { data?: { status: string; amount: number; currency: string } };
   return res.ok && body.data?.status === "success" && body.data.currency === "NGN" ? body.data.amount : null;
 }

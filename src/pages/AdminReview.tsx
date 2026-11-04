@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorText } from "../lib/errors";
 import { fmt } from "../state/derived";
+import { SkeletonLines } from "../components/ui";
 export { VerificationQueue, Payouts };
 
 /** Verification review queue. */
@@ -26,7 +27,7 @@ function VerificationQueue() {
   return (
     <div>
       {pending === undefined ? (
-        <p className="muted">Loading…</p>
+        <SkeletonLines />
       ) : pending.length === 0 ? (
         <div className="card empty-state">
           <ShieldCheck size={32} aria-hidden />
@@ -75,13 +76,13 @@ function VerificationQueue() {
   );
 }
 
-/** What Nutrintel owes each dietitian, and a record of bank transfers made. */
+/** What Kalorax owes each dietitian, and a record of bank transfers made. */
 function Payouts() {
   const rows = useQuery(api.clients.payoutsOverview);
   const record = useMutation(api.clients.recordPayout);
   const [form, setForm] = useState<Record<string, { amount: string; reference: string }>>({});
   const [msg, setMsg] = useState<Record<string, string>>({});
-  if (rows === undefined) return <p className="muted">Loading…</p>;
+  if (rows === undefined) return <SkeletonLines />;
   if (rows.length === 0) return <div className="card empty-state"><h2>No dietitian earnings yet</h2><p className="muted">Payouts appear here once members pay for programmes.</p></div>;
   return (
     <section>

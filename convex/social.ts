@@ -1,4 +1,4 @@
-// Member-to-member messages: chat with another Nutrintel member and send them a week of your meal plan.
+// Member-to-member messages: chat with another Kalorax member and send them a week of your meal plan.
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -15,13 +15,13 @@ const MAX_GROCERY_ITEMS = 80;
 /** At most this many messages a minute from one person in one chat. */
 const MAX_PER_MINUTE = 20;
 const THREAD_LIMIT = 200;
-const NOT_FOUND = "There's no Nutrintel member with that username. Check the spelling, or ask them for their @username.";
+const NOT_FOUND = "There's no Kalorax member with that username. Check the spelling, or ask them for their @username.";
 
 const otherOf = (c: Doc<"conversations">, userId: Id<"users">) => (c.a === userId ? c.b : c.a);
 const readKey = (c: Doc<"conversations">, userId: Id<"users">) => (c.a === userId ? "aReadAt" : "bReadAt") as "aReadAt" | "bReadAt";
 const whoIs = async (ctx: Ctx, userId: Id<"users">) => {
   const p = await getProfile(ctx, userId);
-  return { name: p?.name ?? "Nutrintel member", username: p?.username ?? null };
+  return { name: p?.name ?? "Kalorax member", username: p?.username ?? null };
 };
 
 /** Load a conversation the signed-in user is part of. */
