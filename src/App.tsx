@@ -1,6 +1,10 @@
-import { useConvexAuth } from "convex/react";
-import { lazy, Suspense, useEffect, type ComponentType } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { LogOut } from "lucide-react";
+import { api } from "../convex/_generated/api";
+import { Logo } from "./components/Logo";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { SkeletonPage } from "./components/ui";
 import { useStore } from "./state/store";
@@ -46,6 +50,7 @@ const Exercises = page(loaders.Exercises, "Exercises");
 const Grocery = page(loaders.Grocery, "Grocery");
 const Home = page(loaders.Home, "Home");
 const Landing = page(loaders.Landing, "Landing");
+const PrivateLanding = page(loaders.Landing, "PrivateLanding");
 const Learn = page(loaders.Learn, "Learn");
 const ArticlePage = page(loaders.Learn, "ArticlePage");
 const MealPlan = page(loaders.MealPlan, "MealPlan");
@@ -136,21 +141,75 @@ function LocalApp() {
   );
 }
 
-/** Cloud mode: sign in → set up profile → app. */
+/** The invite token from /join/<token> or ?invite=<token>, if any. */
+function useInviteToken() {
+  const { token } = useParams();
+  const { search } = useLocation();
+  return token ?? new URLSearchParams(search).get("invite");
+}
+
+/** Opening an invite link while signed out: create an account (or sign in) with the token kept in the URL. */
+function JoinRedirect() {
+  const token = useInviteToken();
+  return <Navigate to={`/auth?mode=signup${token ? `&invite=${encodeURIComponent(token)}` : ""}`} replace />;
+}
+
+/** Signed in, but private mode is on and this account has no invite. An invite link in the URL is used automatically. */
+function PrivateTesting({ email }: { email: string | null }) {
+  const { signOut } = useAuthActions();
+  const redeem = useMutation(api.access.redeem);
+  const token = useInviteToken();
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!token) return;
+    // On success the account gets access and the app replaces this screen by itself.
+    redeem({ token }).catch((err: unknown) => setError(err instanceof Error ? err.message.replace(/^.*ConvexError: /, "").replace(/\s*Called by client$/, "") : "That invite link didn't work."));
+  }, [token, redeem]);
+  return (
+    <div className="locked-screen">
+      <Logo size={36} />
+      <h1>Kalorax is in private testing</h1>
+      {token && !error ? (
+        <p className="muted">Checking your invite…</p>
+      ) : (
+        <p className="muted">
+          {email ? <>You're signed in as <strong>{email}</strong>, which doesn't have an invite yet. </> : null}
+          We're letting people in from the waitlist a few at a time. If someone sent you an invite link, open it on this device.
+        </p>
+      )}
+      {error && <p className="error small" role="alert">{error}</p>}
+      <button className="btn btn-secondary" onClick={() => void signOut()}><LogOut size={16} /> Sign out</button>
+    </div>
+  );
+}
+
+/** Cloud mode: sign in → set up profile → app. In private mode the public sees only the waitlist. */
 function CloudApp() {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { ready, profile, account } = useStore();
+  const access = useQuery(api.access.status);
 
-  if (isLoading || (isAuthenticated && !ready)) return <Splash />;
+  if (isLoading || (isAuthenticated && !ready) || (!isAuthenticated && access === undefined)) return <Splash />;
 
   if (!isAuthenticated) {
     return (
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={access?.privateMode ? <PrivateLanding /> : <Landing />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/join/:token" element={<JoinRedirect />} />
         <Route path="/start" element={<Navigate to="/auth?mode=signup" replace />} />
         <Route path="/credits" element={<Credits />} />
         <Route path="*" element={<Navigate to="/auth" replace />} />
+      </Routes>
+    );
+  }
+
+  if (account?.locked) {
+    return (
+      <Routes>
+        <Route path="/credits" element={<Credits />} />
+        <Route path="/join/:token" element={<PrivateTesting email={account.email} />} />
+        <Route path="*" element={<PrivateTesting email={account.email} />} />
       </Routes>
     );
   }

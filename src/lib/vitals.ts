@@ -6,7 +6,9 @@ type Report = { metric: string; value: number; path: string; device: "mobile" | 
 
 /** "/clients/k17abc…" → "/clients/:id", so pages group together and no ids are stored. */
 export function pagePattern(pathname: string): string {
-  const parts = pathname.split("/").map((seg) => (/^[a-z0-9]{16,}$/i.test(seg) || /^\d+$/.test(seg) ? ":id" : seg));
+  const segs = pathname.split("/");
+  // Ids, and the secret token in an invite link (/join/<token>), never leave the browser.
+  const parts = segs.map((seg, i) => (segs[i - 1] === "join" ? ":token" : /^[a-z0-9]{16,}$/i.test(seg) || /^\d+$/.test(seg) ? ":id" : seg));
   return (parts.join("/") || "/").slice(0, 60);
 }
 

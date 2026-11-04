@@ -4,7 +4,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { scheduleMessageAlert } from "./alerts";
-import { checkRange, checkText, getProfile, requireUser } from "./helpers";
+import { checkRange, checkText, getProfile, hasAccess, requireUser } from "./helpers";
 import { normalizeUsername, profileByUsername } from "./usernames";
 import { sharedGrocery, sharedPlan } from "./validators";
 
@@ -46,7 +46,7 @@ export const inbox = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
+    if (!userId || !(await hasAccess(ctx, userId))) return null;
     const [asA, asB] = await Promise.all([
       ctx.db.query("conversations").withIndex("by_a", (q) => q.eq("a", userId)).collect(),
       ctx.db.query("conversations").withIndex("by_b", (q) => q.eq("b", userId)).collect(),

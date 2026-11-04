@@ -6,6 +6,7 @@ describe("speed reports", () => {
   it("group pages without ids", () => {
     expect(pagePattern("/clients/k17d2v8x9q0w1e2r3t4y5u6i")).toBe("/clients/:id");
     expect(pagePattern("/learn/drink-more-water")).toBe("/learn/drink-more-water");
+    expect(pagePattern("/join/k7Qx3mP0aZ9vN2b-L8cR4tY6wE1sD5fG7hJ0kM3n_vC")).toBe("/join/:token");
     expect(pagePattern("/")).toBe("/");
   });
 

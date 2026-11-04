@@ -187,8 +187,8 @@ describe("import, deletion and waitlist", () => {
 
   it("adds each email to the waitlist once", async () => {
     const t = convexTest(schema, modules);
-    expect(await t.mutation(api.waitlist.join, { email: "Folake@Example.com ", role: "dietitian" })).toEqual({ alreadyJoined: false });
-    expect(await t.mutation(api.waitlist.join, { email: "folake@example.com", role: "dietitian" })).toEqual({ alreadyJoined: true });
+    expect(await t.mutation(api.waitlist.join, { email: "Folake@Example.com ", role: "dietitian" })).toEqual({ alreadyJoined: false, emailed: false });
+    expect(await t.mutation(api.waitlist.join, { email: "folake@example.com", role: "dietitian" })).toEqual({ alreadyJoined: true, emailed: false });
     await expect(t.mutation(api.waitlist.join, { email: "not-an-email", role: "member" })).rejects.toThrow(/valid email/);
     expect(await t.run((ctx) => ctx.db.query("waitlist").collect())).toHaveLength(1);
   });
@@ -987,5 +987,141 @@ describe("real-user speed", () => {
     const s = await admin.as.query(api.vitals.summary, {});
     expect(s.reports).toBe(4);
     expect(s.metrics.find((m) => m.metric === "LCP")).toMatchObject({ count: 4, p75: 2000, p75Mobile: 2000, rating: "good", goodShare: 0.75 });
+  });
+});
+
+describe("waitlist", () => {
+  it("is visible to admins only, and a download is noted in the audit log", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(api.waitlist.join, { email: "funke@clinic.ng", role: "dietitian" });
+    await t.mutation(api.waitlist.join, { email: "ada@example.com", role: "member" });
+    const member = await signedIn(t, "bob@example.com");
+    await expect(member.as.query(api.waitlist.list, {})).rejects.toThrow(/Admins only/);
+    await expect(member.as.mutation(api.waitlist.recordExport, { count: 2 })).rejects.toThrow(/Admins only/);
+
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    const rows = await admin.as.query(api.waitlist.list, {});
+    expect(rows.map((r) => [r.email, r.role])).toEqual([["ada@example.com", "member"], ["funke@clinic.ng", "dietitian"]]);
+    await admin.as.mutation(api.waitlist.recordExport, { count: rows.length });
+    expect((await admin.as.query(api.admin.log, {}))[0]).toMatchObject({ action: "waitlist_exported", detail: "Downloaded the waitlist (2 emails) as CSV" });
+  });
+
+  it("emails new joiners once (when email is set up), and caps welcome emails per hour", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    const sent: Array<{ to: string[]; subject: string; text: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return new Response("{}", { status: 200 });
+    }));
+    try {
+      const t = convexTest(schema, modules);
+      expect(await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" })).toEqual({ alreadyJoined: false, emailed: true });
+      await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ to: ["tunde@unn.edu.ng"], subject: "You're on the Kalorax waitlist" });
+      expect(sent[0].text).toMatch(/student account verified/);
+
+      // 60 more in the same hour: the 61st join of the hour gets no email.
+      for (let i = 0; i < 60; i++) await t.mutation(api.waitlist.join, { email: `p${i}@example.com`, role: "member" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(60);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("private mode", () => {
+  const token = (n: number) => `tok_${String(n).padStart(39, "0")}`; // 43 URL-safe characters
+  const signUp = async (t: ReturnType<typeof convexTest>, email: string, inviteToken?: string) => {
+    const { createOrUpdateUser } = await import("./auth");
+    return t.run((ctx) => createOrUpdateUser(ctx, { existingUserId: null, profile: { email, ...(inviteToken ? { inviteToken } : {}) } }));
+  };
+
+  it("only admins can switch it or make invite links, and each change is in the audit log", async () => {
+    const t = convexTest(schema, modules);
+    expect(await t.query(api.access.status, {})).toEqual({ privateMode: false });
+    const member = await signedIn(t, "ada@example.com");
+    await expect(member.as.mutation(api.access.setPrivateMode, { on: true })).rejects.toThrow(/Admins only/);
+    await expect(member.as.mutation(api.access.createInvite, { token: token(1), label: "Me", role: "member" })).rejects.toThrow(/Admins only/);
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    await admin.as.mutation(api.access.setPrivateMode, { on: true });
+    expect(await t.query(api.access.status, {})).toEqual({ privateMode: true });
+    await admin.as.mutation(api.access.setPrivateMode, { on: false });
+    expect((await admin.as.query(api.admin.log, {})).map((r) => r.action)).toEqual(["private_mode_off", "private_mode_on"]);
+    await expect(admin.as.mutation(api.access.createInvite, { token: "short", label: "X", role: "member" })).rejects.toThrow(/Invalid invite token/);
+  });
+
+  it("needs an unused, unexpired invite link to create an account: knowing an email isn't enough", async () => {
+    const t = convexTest(schema, modules);
+    await signUp(t, "early@example.com"); // private mode off: anyone
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    await admin.as.mutation(api.access.setPrivateMode, { on: true });
+    await admin.as.mutation(api.access.createInvite, { token: token(1), label: "tester@company.ng", role: "dietitian" });
+
+    // The attack from the security review: an outsider uses the invited person's email, without the link.
+    await expect(signUp(t, "tester@company.ng")).rejects.toThrow(/invite-only/);
+    await expect(signUp(t, "stranger@example.com", token(2))).rejects.toThrow(/invite-only/);
+    await signUp(t, "tester@company.ng", token(1));
+    // One use only.
+    await expect(signUp(t, "someone@else.com", token(1))).rejects.toThrow(/invite-only/);
+    const o = await admin.as.query(api.access.overview, {});
+    expect(o.invites).toEqual([expect.objectContaining({ label: "tester@company.ng", role: "dietitian", status: "used", usedByEmail: "tester@company.ng", token: null })]);
+
+    // Expired links stop working.
+    await admin.as.mutation(api.access.createInvite, { token: token(3), label: "Late", role: "member" });
+    await t.run(async (ctx) => {
+      const inv = await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token(3))).unique();
+      await ctx.db.patch(inv!._id, { expiresAt: Date.now() - 1 });
+    });
+    await expect(signUp(t, "late@example.com", token(3))).rejects.toThrow(/invite-only/);
+  });
+
+  it("locks out signed-in people without an invite; a link lets an existing account in, and removing it locks them out again", async () => {
+    const t = convexTest(schema, modules);
+    const ada = await signedIn(t, "ada@example.com");
+    await ada.as.mutation(api.profile.create, { ...PROFILE, role: "consumer", weightKg: 70 });
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    await admin.as.mutation(api.access.setPrivateMode, { on: true });
+
+    expect(await ada.as.query(api.me.snapshot, {})).toMatchObject({ locked: true, email: "ada@example.com", profile: null, weights: [] });
+    expect(await ada.as.query(api.me.history, { from: "2026-01-01", to: "2026-01-31" })).toBeNull();
+    await expect(ada.as.mutation(api.data.addWater, { date: "2026-01-01", ml: 250 })).rejects.toThrow(/invite-only/);
+    await expect(ada.as.mutation(api.access.redeem, { token: token(9) })).rejects.toThrow(/isn't valid/);
+    expect((await admin.as.query(api.me.snapshot, {}))!.locked).toBe(false);
+
+    await admin.as.mutation(api.access.createInvite, { token: token(4), label: "Ada", role: "member" });
+    expect(await ada.as.mutation(api.access.redeem, { token: token(4) })).toBe("joined");
+    expect(await ada.as.query(api.me.snapshot, {})).toMatchObject({ locked: false, profile: { name: "Adaeze" } });
+    expect(await ada.as.mutation(api.access.redeem, { token: token(4) })).toBe("already");
+
+    const [inv] = (await admin.as.query(api.access.overview, {})).invites;
+    await admin.as.mutation(api.access.removeInvite, { id: inv.id });
+    expect((await ada.as.query(api.me.snapshot, {}))!.locked).toBe(true);
+    expect((await admin.as.query(api.admin.log, {})).map((r) => r.action)).toEqual(["invite_removed", "invite_added", "private_mode_on"]);
+  });
+
+  it("locks the admin list: a later account with an ADMIN_EMAILS address isn't an admin until a confirmed admin says so", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "admin@kalorax.ng, cofounder@kalorax.ng");
+    const t = convexTest(schema, modules);
+    const admin = await signedIn(t, "admin@kalorax.ng");
+    await admin.as.mutation(api.access.setPrivateMode, { on: true });
+    // Someone signs up with the co-founder's address before they do (with a stolen invite link, or after private mode is off).
+    await admin.as.mutation(api.access.createInvite, { token: token(5), label: "Visitor", role: "member" });
+    const impostorId = await signUp(t, "cofounder@kalorax.ng", token(5));
+    const impostor = t.withIdentity({ subject: `${impostorId}|${await t.run((ctx) => ctx.db.insert("authSessions", { userId: impostorId, expirationTime: Date.now() + 1e9 }))}` });
+    await expect(impostor.query(api.waitlist.list, {})).rejects.toThrow(/Admins only/);
+    expect((await impostor.query(api.me.snapshot, {}))!.isAdmin).toBe(false);
+
+    expect((await admin.as.query(api.access.overview, {})).pendingAdmins).toEqual([{ id: impostorId, email: "cofounder@kalorax.ng" }]);
+    await expect(impostor.mutation(api.access.confirmAdmin, { userId: impostorId })).rejects.toThrow(/Admins only/);
+    await admin.as.mutation(api.access.confirmAdmin, { userId: impostorId });
+    expect((await impostor.query(api.me.snapshot, {}))!.isAdmin).toBe(true);
+    // Turning private mode off keeps the admin list locked.
+    await admin.as.mutation(api.access.setPrivateMode, { on: false });
+    expect((await admin.as.query(api.access.overview, {})).adminListLocked).toBe(true);
   });
 });

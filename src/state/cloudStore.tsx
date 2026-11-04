@@ -219,7 +219,7 @@ export function ConvexStoreProvider({ children }: { children: ReactNode }) {
       ...state,
       mode: "cloud",
       ready: snapshot !== undefined,
-      account: snapshot ? { email: snapshot.email, isAdmin: snapshot.isAdmin } : null,
+      account: snapshot ? { email: snapshot.email, isAdmin: snapshot.isAdmin, locked: snapshot.locked } : null,
       verificationInfo: snapshot?.verification ?? null,
       latestWeightKg: latest ? latest.weightKg : null,
       dietitianTarget: snapshot?.dietitianTarget ?? null,

@@ -386,7 +386,24 @@
 .lp-signin { padding: 0.5rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.88rem; color: var(--lp-text); text-decoration: none; }
 .lp-signin:hover { background: rgb(16 23 12 / 0.05); }
 .lp-waitlist-wrap { max-width: 560px; margin: 2.5rem auto 0; }
+/* Waitlist card, right after the hero */
+.lp-join {
+  max-width: var(--lp-max); margin: 3rem auto 0; padding: 2rem 20px; display: grid; gap: 1.25rem; align-items: center;
+  background: var(--lp-sage); border-radius: 28px; box-sizing: border-box; width: calc(100% - 40px);
+}
+.lp-join h2 { font-size: clamp(1.8rem, 1.3rem + 2vw, 2.6rem); margin: 0.4rem 0 0.5rem; }
+.lp-join p { margin: 0; color: var(--lp-muted); max-width: 46ch; }
+@media (min-width: 720px) { .lp-join .lp-waitlist { grid-template-columns: 1fr 1fr; } .lp-join .lp-waitlist button { grid-column: 1 / -1; } }
+@media (min-width: 900px) { .lp-join { grid-template-columns: 1fr 1.2fr; padding: 2.5rem 3rem; } }
 .lp-waitlist { display: grid; gap: 0.6rem; }
 .lp-waitlist input, .lp-waitlist select { min-height: 52px; border-radius: 999px; padding: 0 1.2rem; background: var(--lp-paper); border: 1px solid var(--lp-line); }
 .lp-waitlist-done { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--brand-text); }
 @media (min-width: 720px) { .lp-waitlist { grid-template-columns: 1.3fr 1fr auto; } }
+
+/* Private mode: the waitlist-only home page */
+.lp-private { min-height: 100vh; display: flex; flex-direction: column; }
+.lp-private-hero { max-width: 880px; margin: 0 auto; padding: 4rem 20px 2rem; flex: 1; text-align: center; }
+.lp-private-hero h1 { font-size: clamp(2.6rem, 1.6rem + 4.5vw, 5rem); margin: 0.8rem 0 1.2rem; }
+.lp-private-hero .lp-lead { margin: 0 auto; max-width: 56ch; }
+.lp-join-solo { width: 100%; margin-top: 2.5rem; text-align: left; }
+@media (min-width: 900px) { .lp-join-solo { grid-template-columns: 1fr; } }

@@ -1,7 +1,9 @@
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, Mail } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { api } from "../../convex/_generated/api";
 import { Logo } from "../components/Logo";
 
 /** forgot: ask for a reset code. reset: enter the code and a new password. */
@@ -17,6 +19,7 @@ function withTimeout<T>(p: Promise<T>): Promise<T> {
 /** Turn Convex Auth errors into plain language. */
 function friendly(err: unknown, flow: Flow): string {
   const msg = err instanceof Error ? err.message : String(err);
+  if (/invite-only/i.test(msg)) return "Kalorax is invite-only for now. This invite link has been used, has expired or is missing: ask whoever invited you for a new one, or join the waitlist on the home page.";
   if (/already exists/i.test(msg)) return "An account with this email already exists. Try signing in.";
   if (/isn't set up/i.test(msg)) return "Password reset isn't available yet. Please contact hello@kalorax.ng.";
   if (flow === "reset" && /InvalidSecret|code|expired|verif/i.test(msg)) return "That code is wrong or has expired. Check the email or ask for a new code.";
@@ -33,6 +36,9 @@ export function Auth() {
   const [params] = useSearchParams();
   const [flow, setFlow] = useState<Flow>(params.get("mode") === "signup" ? "signUp" : "signIn");
   const [email, setEmail] = useState("");
+  const privateMode = useQuery(api.access.status)?.privateMode ?? false;
+  /** Set when the person came from an invite link (/join/<token> → /auth?mode=signup&invite=<token>). */
+  const inviteToken = params.get("invite");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
@@ -89,6 +95,8 @@ export function Auth() {
       } else {
         form.set("password", password);
         form.set("flow", flow);
+        // From an invite link (/join/<token>): the server checks it when creating the account in private mode.
+        if (flow === "signUp" && inviteToken) form.set("inviteToken", inviteToken);
       }
       await withTimeout(signIn("password", form));
       // Routing moves you on once the session is active.
@@ -126,6 +134,12 @@ export function Auth() {
             <button role="tab" aria-selected={flow === "signIn"} className={flow === "signIn" ? "on" : ""} onClick={() => go("signIn")}>Sign in</button>
             <button role="tab" aria-selected={flow === "signUp"} className={flow === "signUp" ? "on" : ""} onClick={() => go("signUp")}>Create account</button>
           </div>
+        )}
+        {flow === "signUp" && inviteToken && (
+          <p className="banner banner-info small" role="status">You've been invited to try Kalorax early. Create your account below, or sign in if you already have one.</p>
+        )}
+        {privateMode && flow === "signUp" && !inviteToken && (
+          <p className="banner banner-info small" role="status">Kalorax is invite-only for now. Open the invite link you were sent to create your account, or join the waitlist on the home page.</p>
         )}
         {info && <p className="banner banner-info small" role="status">{info}</p>}
         <form onSubmit={submit}>

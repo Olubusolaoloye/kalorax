@@ -229,6 +229,18 @@ export function Landing() {
         <div><strong>{RECIPES.length}</strong><span>recipes you can plan and shop for</span></div>
       </section>
 
+      {/* Waitlist: right after the hero, where people decide whether to stay */}
+      {mode === "cloud" && (
+        <section className="lp-join" id="waitlist" data-reveal>
+          <div>
+            <span className="lp-eyebrow">Early access</span>
+            <h2>Be first in line</h2>
+            <p>Get launch news, early features and, for dietitians and students, first access to verification and paid programmes.</p>
+          </div>
+          <WaitlistForm />
+        </section>
+      )}
+
       {/* Dish ribbon */}
       <section className="lp-ribbon" aria-label="Some of the dishes in Kalorax">
         <div className="lp-ribbon-track">
@@ -503,12 +515,6 @@ export function Landing() {
         <h2>Small steps. <em>Real change.</em></h2>
         <p>Log one meal or one walk today. It takes less than a minute.</p>
         <Link to="/start" className="lp-btn lp-btn-lime lp-btn-lg">Start free <ArrowRight size={18} aria-hidden /></Link>
-        {mode === "cloud" && (
-          <div className="lp-waitlist-wrap">
-            <p className="small">Dietitian, student or just curious? Get launch news and early access.</p>
-            <WaitlistForm />
-          </div>
-        )}
       </section>
 
       <footer className="lp-footer">
@@ -517,6 +523,50 @@ export function Landing() {
         <nav aria-label="Footer">
           <a href="#product">Product</a>
           <a href="#pricing">Pricing</a>
+          <Link to="/credits">Photo credits</Link>
+        </nav>
+      </footer>
+    </div>
+  );
+}
+
+/** Private mode: the public sees only this — the promise, the waitlist, and a sign-in link for invited people. */
+export function PrivateLanding() {
+  const root = useReveal();
+  return (
+    <div className="lp lp-private" ref={root}>
+      <div className="lp-aura" aria-hidden>
+        <span className="a1" /><span className="a2" /><span className="a3" />
+      </div>
+      <header className="lp-nav">
+        <Link to="/" className="lp-brand"><Logo size={30} /></Link>
+        <div className="row" style={{ gap: "0.35rem" }}>
+          <Link to="/auth" className="lp-signin">Invited? Sign in</Link>
+        </div>
+      </header>
+
+      <section className="lp-private-hero">
+        <span className="lp-eyebrow">Coming soon</span>
+        <h1>
+          Eat well. Move more. <em>Feel good.</em>
+        </h1>
+        <p className="lp-lead">
+          Kalorax tracks your meals, water and movement with portions that match real plates, from jollof and egusi to pasta
+          and salads, with plans from verified dietitians. We're testing with a small group first.
+        </p>
+        <div className="lp-join lp-join-solo">
+          <div>
+            <h2>Join the waitlist</h2>
+            <p>Be first in line for early access. Dietitians and students also get first access to verification and paid programmes.</p>
+          </div>
+          <WaitlistForm />
+        </div>
+      </section>
+
+      <footer className="lp-footer">
+        <Link to="/" className="lp-brand"><Logo size={26} /></Link>
+        <p>Kalorax supports healthy eating but does not replace advice from your doctor or dietitian.</p>
+        <nav aria-label="Footer">
           <Link to="/credits">Photo credits</Link>
         </nav>
       </footer>
