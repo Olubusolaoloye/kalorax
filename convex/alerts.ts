@@ -49,8 +49,8 @@ export const claimMessageAlert = internalMutation({
       const e = id && (await ctx.db.get(id));
       if (!e || e.memberDeleted) return null;
       const readAt = (e.memberId === to ? e.memberReadAt : e.dietitianReadAt) ?? 0;
-      unread = (await ctx.db.query("messages").withIndex("by_enrolment", (q) => q.eq("enrolmentId", e._id)).collect())
-        .filter((m) => m.senderId === from && m.sentAt > readAt);
+      unread = (await ctx.db.query("messages").withIndex("by_enrolment_sent", (q) => q.eq("enrolmentId", e._id).gt("sentAt", readAt)).collect())
+        .filter((m) => m.senderId === from);
       url = `/messages?p=${e._id}`;
     }
     // Read already, or a newer message will send its own alert.

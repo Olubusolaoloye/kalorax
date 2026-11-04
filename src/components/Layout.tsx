@@ -19,11 +19,12 @@ import {
   WifiOff,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { canUseWorkbench, useStore } from "../state/store";
 import { useLocalReminders } from "../state/useLocalReminders";
 import { CloudEnsureUsername, CloudUnreadBadge } from "./Social";
+import { SkeletonPage } from "./ui";
 
 function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -155,7 +156,9 @@ export function Layout() {
             <WifiOff size={16} aria-hidden /> You're offline. Your logs are saved on this device.
           </div>
         )}
-        <Outlet />
+        <Suspense fallback={<SkeletonPage />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

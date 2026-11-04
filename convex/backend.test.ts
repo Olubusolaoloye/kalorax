@@ -919,3 +919,73 @@ describe("alarm reminders", () => {
     await ada.as.mutation(api.reminders.sendTest, { alarm: true });
   });
 });
+
+describe("snapshot size", () => {
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
+  it("carries recent months (and planned days ahead); older days come from history on request", async () => {
+    const t = convexTest(schema, modules);
+    const { userId, as } = await signedIn(t, "ada@example.com");
+    await as.mutation(api.profile.create, { ...PROFILE, role: "consumer", weightKg: 70 });
+    const food = { meal: "Lunch" as const, foodId: "jollof", grams: 300, portionLabel: "1 plate" };
+    await t.run(async (ctx) => {
+      for (const offset of [0, -100, -200]) await ctx.db.insert("diary", { ...food, userId, date: day(offset), loggedAt: new Date().toISOString() });
+      await ctx.db.insert("plan", { userId, date: day(3), meal: "Dinner", recipeId: "jollof-rice" });
+      await ctx.db.insert("weights", { userId, date: day(-300), weightKg: 74 });
+    });
+
+    const s = (await as.query(api.me.snapshot, {}))!;
+    expect(s.historyFrom).toBe(day(-180));
+    expect(s.diary.map((d) => d.date).sort()).toEqual([day(-100), day(0)]);
+    expect(s.plan.map((p) => p.date)).toEqual([day(3)]);
+    // Every weigh-in stays, for the progress chart.
+    expect(s.weights).toHaveLength(2);
+
+    const old = (await as.query(api.me.history, { from: day(-210), to: day(-181) }))!;
+    expect(old.diary.map((d) => d.date)).toEqual([day(-200)]);
+    await expect(as.query(api.me.history, { from: day(-300), to: day(-181) })).rejects.toThrow(/two months/);
+
+    // Only your own rows.
+    const other = await signedIn(t, "bob@example.com");
+    expect((await other.as.query(api.me.history, { from: day(-210), to: day(-181) }))!.diary).toEqual([]);
+    expect(await t.query(api.me.history, { from: day(-210), to: day(-181) })).toBeNull();
+  });
+});
+
+describe("programme chat size", () => {
+  it("shows the newest 200 messages and counts only unread ones from the other side", async () => {
+    const { t, d, m, enrolmentId } = await paidSetup();
+    const start = Date.now() - 1_000_000;
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 205; i++) await ctx.db.insert("messages", { enrolmentId, senderId: d.userId, text: `tip ${i}`, sentAt: start + i * 1000 });
+    });
+    const th = (await m.as.query(api.interventions.programmeThread, { enrolmentId }))!;
+    expect(th.messages).toHaveLength(200);
+    expect(th.messages[0].text).toBe("tip 5");
+    expect(th.messages.at(-1)!.text).toBe("tip 204");
+
+    expect((await m.as.query(api.interventions.programmeChats, {}))[0]).toMatchObject({ unread: 205, lastText: "tip 204", lastFromMe: false });
+    await m.as.mutation(api.interventions.markRead, { enrolmentId });
+    await m.as.mutation(api.interventions.sendMessage, { enrolmentId, text: "Thank you!" });
+    expect((await m.as.query(api.interventions.programmeChats, {}))[0]).toMatchObject({ unread: 0, lastText: "Thank you!", lastFromMe: true });
+    // The dietitian's client list counts the member's new message.
+    expect((await d.as.query(api.clients.myClients, {}))[0].unread).toBe(1);
+  });
+});
+
+describe("real-user speed", () => {
+  it("stores browser reports and shows admins the 75th percentile", async () => {
+    const t = convexTest(schema, modules);
+    const reports = [1000, 1500, 2000, 6000].map((value) => ({ metric: "LCP", value, path: "/home", device: "mobile" }));
+    expect((await t.fetch("/vitals", { method: "POST", body: JSON.stringify(reports) })).status).toBe(204);
+    expect((await t.fetch("/vitals", { method: "POST", body: "nonsense" })).status).toBe(204);
+    expect((await t.fetch("/vitals", { method: "POST", body: JSON.stringify([{ metric: "LCP", value: -1 }]) })).status).toBe(204);
+
+    const member = await signedIn(t, "ada@example.com");
+    await expect(member.as.query(api.vitals.summary, {})).rejects.toThrow();
+    const admin = await signedIn(t, "admin@nutrintel.ng");
+    const s = await admin.as.query(api.vitals.summary, {});
+    expect(s.reports).toBe(4);
+    expect(s.metrics.find((m) => m.metric === "LCP")).toMatchObject({ count: 4, p75: 2000, p75Mobile: 2000, rating: "good", goodShare: 0.75 });
+  });
+});

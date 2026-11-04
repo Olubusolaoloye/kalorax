@@ -1,5 +1,5 @@
 import { ArrowLeft, Minus, Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, MacroTiles, MealTag, NutrientChips, PageHeader, SearchBox, Thumb } from "../components/ui";
 import { CATEGORIES_BY_CUISINE, CUISINES, nutrientsFor, searchFoods, type Cuisine, type Food } from "../data/foods";
@@ -26,11 +26,13 @@ export function AddFood() {
   const [category, setCategory] = useState<string>("All");
   const [selected, setSelected] = useState<Food | null>(null);
   const [tray, setTray] = useState<Pending[]>([]);
-  const searching = query.trim().length > 0;
+  // The box updates on every key; the list follows when the phone has a moment, so typing never lags.
+  const search = useDeferredValue(query);
+  const searching = search.trim().length > 0;
 
   // Searching looks across every cuisine, grouped by cuisine. Browsing shows one cuisine, grouped by category.
   const sections = useMemo(() => {
-    const found = searchFoods(query);
+    const found = searchFoods(search);
     if (searching) {
       return CUISINES.map((c) => ({
         title: `${c.emoji} ${c.label}`,
@@ -41,7 +43,7 @@ export function AddFood() {
       .filter((cat) => category === "All" || cat === category)
       .map((cat) => ({ title: cat, foods: found.filter((f) => f.cuisine === cuisine && f.category === cat) }))
       .filter((s) => s.foods.length > 0);
-  }, [query, searching, cuisine, category]);
+  }, [search, searching, cuisine, category]);
 
   const save = () => {
     addDiaryEntries(tray.map((p) => ({ date: todayIso(), meal, foodId: p.food.id, grams: p.grams, portionLabel: p.portionLabel })));

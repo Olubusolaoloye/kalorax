@@ -1,32 +1,85 @@
 import { useConvexAuth } from "convex/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
-import { AddFood } from "./pages/AddFood";
-import { ClientPage, Clients } from "./pages/Clients";
-import { Auth } from "./pages/Auth";
-import { Calendar } from "./pages/Calendar";
-import { Credits } from "./pages/Credits";
-import { Diary } from "./pages/Diary";
-import { Exercises } from "./pages/Exercises";
-import { Grocery } from "./pages/Grocery";
-import { Home } from "./pages/Home";
-import { Landing } from "./pages/Landing";
-import { ArticlePage, Learn } from "./pages/Learn";
-import { MealPlan } from "./pages/MealPlan";
-import { Me } from "./pages/Me";
-import { Messages } from "./pages/Messages";
-import { Onboarding } from "./pages/Onboarding";
-import { Progress } from "./pages/Progress";
-import { MyProgramme, PaymentReturn, ProgrammeDetail, Programmes } from "./pages/Programmes";
-import { RecipeDetail, Recipes } from "./pages/Recipes";
-import { ProGate, ProPaymentReturn } from "./pages/Pro";
-import { Reminders } from "./pages/Reminders";
-import { Workbench } from "./pages/Workbench";
+import { SkeletonPage } from "./components/ui";
 import { useStore } from "./state/store";
 
+// Each page is its own download, fetched when it's first opened; the rest are fetched
+// quietly once the first screen is up (see usePrefetchPages), so later taps stay instant.
+const loaders = {
+  AddFood: () => import("./pages/AddFood"),
+  Auth: () => import("./pages/Auth"),
+  Calendar: () => import("./pages/Calendar"),
+  Clients: () => import("./pages/Clients"),
+  Credits: () => import("./pages/Credits"),
+  Diary: () => import("./pages/Diary"),
+  Exercises: () => import("./pages/Exercises"),
+  Grocery: () => import("./pages/Grocery"),
+  Home: () => import("./pages/Home"),
+  Landing: () => import("./pages/Landing"),
+  Learn: () => import("./pages/Learn"),
+  MealPlan: () => import("./pages/MealPlan"),
+  Me: () => import("./pages/Me"),
+  Messages: () => import("./pages/Messages"),
+  Onboarding: () => import("./pages/Onboarding"),
+  Pro: () => import("./pages/Pro"),
+  Programmes: () => import("./pages/Programmes"),
+  Progress: () => import("./pages/Progress"),
+  Recipes: () => import("./pages/Recipes"),
+  Reminders: () => import("./pages/Reminders"),
+  Workbench: () => import("./pages/Workbench"),
+};
+
+function page<M, K extends keyof M>(load: () => Promise<M>, name: K) {
+  return lazy(async () => ({ default: (await load())[name] as ComponentType<any> }));
+}
+
+const AddFood = page(loaders.AddFood, "AddFood");
+const Auth = page(loaders.Auth, "Auth");
+const Calendar = page(loaders.Calendar, "Calendar");
+const Clients = page(loaders.Clients, "Clients");
+const ClientPage = page(loaders.Clients, "ClientPage");
+const Credits = page(loaders.Credits, "Credits");
+const Diary = page(loaders.Diary, "Diary");
+const Exercises = page(loaders.Exercises, "Exercises");
+const Grocery = page(loaders.Grocery, "Grocery");
+const Home = page(loaders.Home, "Home");
+const Landing = page(loaders.Landing, "Landing");
+const Learn = page(loaders.Learn, "Learn");
+const ArticlePage = page(loaders.Learn, "ArticlePage");
+const MealPlan = page(loaders.MealPlan, "MealPlan");
+const Me = page(loaders.Me, "Me");
+const Messages = page(loaders.Messages, "Messages");
+const Onboarding = page(loaders.Onboarding, "Onboarding");
+const ProGate = page(loaders.Pro, "ProGate");
+const ProPaymentReturn = page(loaders.Pro, "ProPaymentReturn");
+const Programmes = page(loaders.Programmes, "Programmes");
+const ProgrammeDetail = page(loaders.Programmes, "ProgrammeDetail");
+const MyProgramme = page(loaders.Programmes, "MyProgramme");
+const PaymentReturn = page(loaders.Programmes, "PaymentReturn");
+const Progress = page(loaders.Progress, "Progress");
+const Recipes = page(loaders.Recipes, "Recipes");
+const RecipeDetail = page(loaders.Recipes, "RecipeDetail");
+const Reminders = page(loaders.Reminders, "Reminders");
+const Workbench = page(loaders.Workbench, "Workbench");
 /** Admin pages load only when an admin opens them, so members never download them. */
-const Admin = lazy(() => import("./pages/Admin").then((m) => ({ default: m.Admin })));
+const Admin = page(() => import("./pages/Admin"), "Admin");
+
+/** Once the first screen has rendered and the browser is idle, fetch the other pages (skipped on Data Saver). */
+function usePrefetchPages() {
+  useEffect(() => {
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+    if (saveData) return;
+    const run = () => Object.values(loaders).forEach((load) => void load().catch(() => {}));
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(run, { timeout: 5000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(run, 2000);
+    return () => clearTimeout(id);
+  }, []);
+}
 
 /** The signed-in app (sidebar layout). */
 function appRoutes(isAdmin: boolean) {
@@ -55,16 +108,16 @@ function appRoutes(isAdmin: boolean) {
       <Route path="/my-programmes/:id" element={<MyProgramme />} />
       <Route path="/clients" element={<Clients />} />
       <Route path="/clients/:id" element={<ClientPage />} />
-      {isAdmin && <Route path="/admin" element={<Suspense fallback={<p className="page muted">Loading admin…</p>}><Admin /></Suspense>} />}
+      {isAdmin && <Route path="/admin" element={<Admin />} />}
     </Route>
   );
 }
 
+/** Shown while the account loads: the page's shape, not a blank screen. */
 function Splash() {
   return (
-    <div className="splash" role="status" aria-live="polite">
-      <img src="/icon.svg" alt="" width={56} height={56} />
-      <span className="muted small">Loading Nutrintel…</span>
+    <div className="main">
+      <SkeletonPage label="Loading Nutrintel" />
     </div>
   );
 }
@@ -123,5 +176,6 @@ function CloudApp() {
 
 export default function App() {
   const { mode } = useStore();
-  return mode === "cloud" ? <CloudApp /> : <LocalApp />;
+  usePrefetchPages();
+  return <Suspense fallback={<Splash />}>{mode === "cloud" ? <CloudApp /> : <LocalApp />}</Suspense>;
 }

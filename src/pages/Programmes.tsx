@@ -2,7 +2,7 @@ import { ArrowLeft, CalendarCheck, CalendarRange, Check, ClipboardList, CreditCa
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { DietitianInfo, Thread } from "../components/Thread";
-import { Card, PageHeader, SampleNotice, Sheet } from "../components/ui";
+import { Card, PageHeader, SampleNotice, Sheet, SkeletonLines, SkeletonPage } from "../components/ui";
 import { PLATFORM_FEE_PERCENT, PROGRAMMES, programmeById, type Programme } from "../data/programmes";
 import { errorText } from "../lib/errors";
 import { intakeError, programmeEnd, programmeWeek, type Intake, type MemberEnrolment, type Offering } from "../lib/interventions";
@@ -156,7 +156,7 @@ export function ProgrammeDetail() {
         <section>
           <h2 className="section-title">Choose your dietitian</h2>
           {catalogue === undefined ? (
-            <p className="muted">Loading…</p>
+            <SkeletonLines />
           ) : offers.length === 0 ? (
             <div className="card empty-state">
               <HeartPulse size={28} aria-hidden />
@@ -320,7 +320,7 @@ export function MyProgramme() {
     if (e && unread > 0) markRead(e.id);
   }, [e, unread, markRead]);
 
-  if (myEnrolments === undefined) return <div className="page"><p className="muted">Loading…</p></div>;
+  if (myEnrolments === undefined) return <SkeletonPage />;
   if (!e) return <div className="page"><p>Programme not found. <Link to="/programmes" className="link">Programmes</Link></p></div>;
   const p = programmeById(e.programmeId)!;
   const today = todayIso();

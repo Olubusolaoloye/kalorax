@@ -22,6 +22,7 @@ export const PasswordReset = Email({
     if (!key) throw new Error("Password reset email isn't set up yet.");
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: process.env.AUTH_EMAIL_FROM ?? "Nutrintel <no-reply@nutrintel.ng>",

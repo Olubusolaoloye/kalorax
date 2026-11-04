@@ -1372,3 +1372,25 @@ fieldset.field { border: 0; padding: 0; min-width: 0; }
 .pro-pay .seg { flex-wrap: wrap; }
 .locked .pro-pay { justify-items: center; }
 .pro-history { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+
+/* ---------- Skeleton loading ---------- */
+.sk { display: block; background: var(--surface-sunk); border-radius: 10px; animation: shimmer 1.4s ease-in-out infinite; }
+.sk-title { width: 45%; height: 1.9rem; margin: 1.25rem 0 0.5rem; }
+.sk-sub { width: 30%; height: 0.9rem; margin-bottom: 1.25rem; }
+.sk-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+.sk-tile { height: 84px; border-radius: var(--radius-lg); }
+.sk-list { display: grid; gap: 0.9rem; }
+.sk-row { display: flex; align-items: center; gap: 0.75rem; }
+.sk-dot { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; }
+.sk-line { height: 0.8rem; width: 80%; }
+.sk-line.short { width: 45%; margin-top: 0.4rem; }
+.sk-page .card { margin-bottom: 1rem; }
+/* Skeletons appear at once (no page fade-in); only the shimmer moves. */
+.sk-page > *:not(.sk) { animation: none; }
+.chat-body .sk-list { padding: 0.5rem 0; }
+@media (max-width: 639px) { .sk-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- Long lists ----------
+   Rows below the screen aren't laid out or painted until you scroll near them (the browser's own
+   virtualization). "auto" remembers each row's real height once it has been shown. */
+.food-rows > li { content-visibility: auto; contain-intrinsic-size: auto 76px; }

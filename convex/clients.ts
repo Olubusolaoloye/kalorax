@@ -98,7 +98,8 @@ async function summaryFor(ctx: QueryCtx, e: Doc<"enrolments">): Promise<ClientSu
     getProfile(ctx, e.memberId),
     ctx.db.query("diary").withIndex("by_user_date", (q) => q.eq("userId", e.memberId).gte("date", shiftDate(today, -30))).collect(),
     ctx.db.query("weights").withIndex("by_user_date", (q) => q.eq("userId", e.memberId)).collect(),
-    ctx.db.query("messages").withIndex("by_enrolment", (q) => q.eq("enrolmentId", e._id)).collect(),
+    // Only messages after the dietitian last read the chat, not the whole history.
+    ctx.db.query("messages").withIndex("by_enrolment_sent", (q) => q.eq("enrolmentId", e._id).gt("sentAt", e.dietitianReadAt ?? 0)).collect(),
   ]);
   const sorted = weights.sort((a, b) => a.date.localeCompare(b.date));
   const atStart = [...sorted].reverse().find((w) => !e.startDate || w.date <= e.startDate) ?? sorted[0];
@@ -114,7 +115,7 @@ async function summaryFor(ctx: QueryCtx, e: Doc<"enrolments">): Promise<ClientSu
     ...a,
     latestWeightKg: active ? latest?.weightKg ?? null : null,
     weightChangeKg: active && latest && atStart ? Math.round((latest.weightKg - atStart.weightKg) * 10) / 10 : null,
-    unread: unread.filter((m) => m.senderId === e.memberId && m.sentAt > (e.dietitianReadAt ?? 0)).length,
+    unread: unread.filter((m) => m.senderId === e.memberId).length,
   };
 }
 
@@ -125,9 +126,7 @@ export const myClients = query({
     const rows = (await ctx.db.query("enrolments").withIndex("by_dietitian", (q) => q.eq("dietitianId", userId)).collect()).filter(
       (e) => e.status === "active" || e.status === "completed",
     );
-    const out: ClientSummary[] = [];
-    for (const e of rows) out.push(await summaryFor(ctx, e));
-    return out;
+    return Promise.all(rows.map((e) => summaryFor(ctx, e)));
   },
 });
 

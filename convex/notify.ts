@@ -28,7 +28,8 @@ async function sendPush(d: Delivery): Promise<string[]> {
       ? { snoozeUrl: `${process.env.CONVEX_SITE_URL}/reminders/snooze`, snoozeToken: await signSnooze(process.env.VAPID_PRIVATE_KEY!, { u: d.userId, m: { key: m.key, title: m.title, body: m.body, url: m.url }, n: snoozes }) }
       : {};
     const payload = JSON.stringify({ title: m.title, body: m.body, url: m.url, tag: m.key, priority: !!m.priority, ...snooze });
-    const options = m.priority ? { TTL: 900, urgency: "high" as const } : { TTL: 3600, urgency: "normal" as const };
+    // Give up on a push service after 10 seconds so one slow endpoint doesn't hold up the rest.
+    const options = m.priority ? { TTL: 900, urgency: "high" as const, timeout: 10_000 } : { TTL: 3600, urgency: "normal" as const, timeout: 10_000 };
     await Promise.all(
       d.push.map(async (s) => {
         try {
@@ -46,8 +47,18 @@ async function sendPush(d: Delivery): Promise<string[]> {
 
 /** WhatsApp business-initiated messages must use an approved template. */
 async function sendTemplate(to: string, template: string, components: unknown[]) {
+  try {
+    await postTemplate(to, template, components);
+  } catch (err) {
+    // A timeout or network error skips this message instead of stopping everyone else's.
+    console.error("whatsapp unreachable", (err as Error).name);
+  }
+}
+
+async function postTemplate(to: string, template: string, components: unknown[]) {
   const res = await fetch(`${GRAPH}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       messaging_product: "whatsapp",
@@ -76,10 +87,15 @@ export const deliver = internalAction({
   args: { deliveries: v.any() },
   handler: async (ctx, { deliveries }) => {
     const gone: string[] = [];
-    for (const d of deliveries as Delivery[]) {
-      const [expired] = await Promise.all([sendPush(d), sendWhatsApp(d)]);
-      gone.push(...expired);
-    }
+    // Members are independent, so send to several at once (10 at a time keeps providers happy).
+    const queue = [...(deliveries as Delivery[])];
+    const worker = async () => {
+      for (let d = queue.shift(); d; d = queue.shift()) {
+        const [expired] = await Promise.all([sendPush(d), sendWhatsApp(d)]);
+        gone.push(...expired);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(10, queue.length) }, worker));
     if (gone.length) await ctx.runMutation(internal.reminders.removeEndpoints, { endpoints: gone });
   },
 });

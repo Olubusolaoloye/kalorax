@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Thread } from "../components/Thread";
 import { Avatar } from "../components/Layout";
-import { Card, Locked, PageHeader, SampleNotice, StatCard, Switch } from "../components/ui";
+import { Card, Locked, PageHeader, SampleNotice, SkeletonLines, SkeletonPage, StatCard, Switch } from "../components/ui";
 import { CUISINES, foodById, type Cuisine } from "../data/foods";
 import { LANGUAGES, PLATFORM_FEE_PERCENT, PROGRAMMES, programmeById } from "../data/programmes";
 import { ALLERGENS, recipeById, type Allergen } from "../data/recipes";
@@ -86,7 +86,7 @@ function ClientList() {
   const { clients } = useInterventions();
   const today = todayIso();
   const [show, setShow] = useState<"active" | "completed">("active");
-  if (clients === undefined) return <p className="muted">Loading…</p>;
+  if (clients === undefined) return <SkeletonLines />;
   const list = (clients ?? []).filter((c) => (show === "active" ? c.status === "active" : c.status === "completed"));
   const withFlags = list.map((c) => ({ c, flags: clientFlags(c, today) })).sort((a, b) => b.flags.length - a.flags.length || a.c.name.localeCompare(b.c.name));
   const needAttention = withFlags.filter((x) => x.flags.length > 0).length;
@@ -167,7 +167,7 @@ function PracticeSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!practice]);
 
-  if (practice === undefined) return <p className="muted">Loading…</p>;
+  if (practice === undefined) return <SkeletonLines />;
   if (!practice) return null;
   const offering = (id: string) => practice.offerings.find((o) => o.programmeId === id);
 
@@ -257,7 +257,7 @@ function PracticeSettings() {
 
 function EarningsPanel() {
   const { practice } = useInterventions();
-  if (practice === undefined) return <p className="muted">Loading…</p>;
+  if (practice === undefined) return <SkeletonLines />;
   if (!practice) return null;
   const e = practice.earnings;
   return (
@@ -293,7 +293,7 @@ export function ClientPage() {
   return (
     <DietitianOnly>
       {c === undefined ? (
-        <div className="page"><p className="muted">Loading…</p></div>
+        <SkeletonPage />
       ) : c === null ? (
         <div className="page"><p>Client not found. <Link to="/clients" className="link">All clients</Link></p></div>
       ) : (

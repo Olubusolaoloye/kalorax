@@ -8,7 +8,7 @@ import { MessageBox } from "../components/MessageBox";
 import { CloudNotifyNudge } from "../components/ReminderChannels";
 import { GroceryCard, PeoplePicker, PlanCard } from "../components/Social";
 import { Avatar } from "../components/Layout";
-import { PageHeader, SearchBox, Sheet } from "../components/ui";
+import { PageHeader, SearchBox, Sheet, SkeletonLines } from "../components/ui";
 import { errorText } from "../lib/errors";
 import { grocerySnapshot, weekGroceryLines, type SharedGrocery } from "../lib/grocery";
 import { planSnapshot, type SharedPlan } from "../lib/share";
@@ -116,7 +116,7 @@ function CloudMessages() {
             </ul>
           )}
           {inbox === undefined ? (
-            <p className="muted small">Loading…</p>
+            <SkeletonLines rows={4} />
           ) : list.length === 0 ? (
             <p className="muted small chat-empty">{q ? "No chats match." : "No messages yet. Find a friend by their @username, or send them your meal plan."}</p>
           ) : (
@@ -202,7 +202,13 @@ function NewChat({ onClose, onOpen }: { onClose: () => void; onOpen: (id: string
 function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
   const conversationId = id as Id<"conversations">;
   const t = useQuery(api.social.thread, { conversationId });
-  const send = useMutation(api.social.send);
+  // The message shows straight away; the server's copy replaces it a moment later.
+  const send = useMutation(api.social.send).withOptimisticUpdate((store, { conversationId, text, plan, grocery, checked }) => {
+    const current = store.getQuery(api.social.thread, { conversationId });
+    if (!current) return;
+    const pending = { id: `temp_${crypto.randomUUID()}` as Id<"directMessages">, fromMe: true, text: text.trim(), plan: plan ?? null, grocery: grocery ?? null, checked: checked ?? [], sentAt: new Date().toISOString() };
+    store.setQuery(api.social.thread, { conversationId }, { ...current, messages: [...current.messages, pending] });
+  });
   const markRead = useMutation(api.social.markRead);
   const setBlocked = useMutation(api.social.setBlocked);
   const [text, setText] = useState("");
@@ -235,7 +241,10 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
   };
 
   const submit = async () => {
-    if (await deliver({ text })) setText("");
+    const sent = text;
+    setText("");
+    // Put the text back if it couldn't be sent, so nothing is lost.
+    if (!(await deliver({ text: sent }))) setText((now) => now || sent);
   };
 
   return (
@@ -261,12 +270,12 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         )}
       </header>
       <div className="chat-body" aria-live="polite">
-        {t === undefined && <p className="muted small center">Loading…</p>}
+        {t === undefined && <SkeletonLines rows={4} />}
         {t?.messages.length === 0 && <p className="muted small center">No messages yet. Say hello, or send your meal plan.</p>}
         {t?.messages.map((m) => (
           <div key={m.id} className={`bubble ${m.fromMe ? "me" : "them"}${m.plan || m.grocery ? " has-plan" : ""}`}>
             {m.plan && <PlanCard plan={m.plan} fromMe={m.fromMe} />}
-            {m.grocery && <GroceryCard messageId={m.id} grocery={m.grocery as SharedGrocery} checked={m.checked} disabled={t.blocked} />}
+            {m.grocery && <GroceryCard messageId={m.id} grocery={m.grocery as SharedGrocery} checked={m.checked} disabled={t.blocked || m.id.startsWith("temp_")} />}
             {m.text && <p>{m.text}</p>}
             <span>{m.fromMe ? "You" : t.name} · {when(m.sentAt)}</span>
           </div>
@@ -379,7 +388,7 @@ function ProgrammeThreadView({ id, onBack }: { id: string; onBack: () => void })
         </div>
       )}
       <div className="chat-body" aria-live="polite">
-        {t === undefined && <p className="muted small center">Loading…</p>}
+        {t === undefined && <SkeletonLines rows={4} />}
         {t?.messages.length === 0 && (
           <p className="muted small center">{t.role === "member" ? `Say hello to ${first} — tell them about your goals and anything you'd like help with.` : `Say hello to ${first} and let them know what happens next.`}</p>
         )}

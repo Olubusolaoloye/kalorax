@@ -13,7 +13,9 @@ import {
   STORAGE_KEY,
   loadLocal,
   noteKey,
+  shiftDate,
   type CalendarEvent,
+  type DatedState,
   type DiaryEntry,
   type DiaryNote,
   type ExerciseEntry,
@@ -25,6 +27,46 @@ import {
 } from "./store";
 
 type Snapshot = NonNullable<FunctionReturnType<typeof api.me.snapshot>>;
+
+type DatedRows = Pick<Snapshot, "diary" | "water" | "notes" | "plan" | "events" | "exercises">;
+
+/** Server rows → the app's date-keyed state (shared by the snapshot and older-history queries). */
+function toDated(s: DatedRows): DatedState {
+  const notes: Record<string, DiaryNote> = {};
+  for (const n of s.notes) notes[noteKey(n.date, n.slot)] = { feeling: n.feeling, tags: n.tags, text: n.text, updatedAt: n.updatedAt };
+  const plan: MealPlan = {};
+  const planPortions: PlanPortions = {};
+  for (const r of s.plan) {
+    plan[r.date] = { ...(plan[r.date] ?? {}), [r.meal]: r.recipeId };
+    if (r.portion && r.portion !== 1) planPortions[noteKey(r.date, r.meal)] = r.portion;
+  }
+  return {
+    diary: s.diary.map(
+      (d): DiaryEntry => ({ id: d._id, date: d.date, meal: d.meal, foodId: d.foodId, grams: d.grams, portionLabel: d.portionLabel, loggedAt: d.loggedAt }),
+    ),
+    water: Object.fromEntries(s.water.map((w) => [w.date, w.ml])),
+    notes,
+    plan,
+    planPortions,
+    events: s.events.map((e): CalendarEvent => ({ id: e._id, date: e.date, time: e.time, type: e.type, title: e.title, location: e.location, note: e.note })),
+    exercises: s.exercises.map(
+      (x): ExerciseEntry => ({ id: x._id, date: x.date, activityId: x.activityId, minutes: x.minutes, sets: x.sets, reps: x.reps, status: x.status }),
+    ),
+  };
+}
+
+/** Older rows first, recent ones on top (the two never overlap: history stops the day before the snapshot starts). */
+function mergeDated(older: DatedState, recent: DatedState): DatedState {
+  return {
+    diary: [...older.diary, ...recent.diary],
+    water: { ...older.water, ...recent.water },
+    notes: { ...older.notes, ...recent.notes },
+    plan: { ...older.plan, ...recent.plan },
+    planPortions: { ...older.planPortions, ...recent.planPortions },
+    events: [...older.events, ...recent.events],
+    exercises: [...older.exercises, ...recent.exercises],
+  };
+}
 
 function toState(s: Snapshot): PersistedState {
   const p = s.profile;
@@ -42,32 +84,28 @@ function toState(s: Snapshot): PersistedState {
         username: p.username,
       }
     : null;
-  const notes: Record<string, DiaryNote> = {};
-  for (const n of s.notes) notes[noteKey(n.date, n.slot)] = { feeling: n.feeling, tags: n.tags, text: n.text, updatedAt: n.updatedAt };
-  const plan: MealPlan = {};
-  const planPortions: PlanPortions = {};
-  for (const r of s.plan) {
-    plan[r.date] = { ...(plan[r.date] ?? {}), [r.meal]: r.recipeId };
-    if (r.portion && r.portion !== 1) planPortions[noteKey(r.date, r.meal)] = r.portion;
-  }
   return {
     profile,
-    diary: s.diary.map(
-      (d): DiaryEntry => ({ id: d._id, date: d.date, meal: d.meal, foodId: d.foodId, grams: d.grams, portionLabel: d.portionLabel, loggedAt: d.loggedAt }),
-    ),
-    water: Object.fromEntries(s.water.map((w) => [w.date, w.ml])),
+    ...toDated(s),
     weights: [...s.weights].sort((a, b) => a.date.localeCompare(b.date)).map((w) => ({ date: w.date, weightKg: w.weightKg })),
-    notes,
-    plan,
-    planPortions,
     planPrefs: s.planPrefs ?? DEFAULT_PLAN_PREFS,
     reminders: s.reminders ? { ...DEFAULT_REMINDERS, ...s.reminders } : DEFAULT_REMINDERS,
     grocery: s.grocery ? { people: s.grocery.people, purchased: s.grocery.purchased, qtyOverride: s.grocery.qtyOverride } : EMPTY.grocery,
-    events: s.events.map((e): CalendarEvent => ({ id: e._id, date: e.date, time: e.time, type: e.type, title: e.title, location: e.location, note: e.note })),
-    exercises: s.exercises.map(
-      (x): ExerciseEntry => ({ id: x._id, date: x.date, activityId: x.activityId, minutes: x.minutes, sets: x.sets, reps: x.reps, status: x.status }),
-    ),
   };
+}
+
+/** Older days for a page that goes back further than the snapshot (e.g. last year's diary). */
+function useCloudRange(recent: DatedState, historyFrom: string | null, from: string, to: string): DatedState & { loading: boolean } {
+  const older = historyFrom !== null && from < historyFrom;
+  const dayBefore = historyFrom ? shiftDate(historyFrom, -1) : to;
+  const end = to < dayBefore ? to : dayBefore;
+  // The server returns up to 62 days at a time, which covers a calendar month or two diary weeks.
+  const start = from < shiftDate(end, -61) ? shiftDate(end, -61) : from;
+  const rows = useQuery(api.me.history, older ? { from: start, to: end } : "skip");
+  return useMemo(
+    () => (older && rows ? { ...mergeDated(toDated(rows), recent), loading: false } : { ...recent, loading: older && rows === undefined }),
+    [older, rows, recent],
+  );
 }
 
 /** Apply an optimistic change to the cached snapshot (instant UI while the server confirms). */
@@ -108,7 +146,14 @@ export function ConvexStoreProvider({ children }: { children: ReactNode }) {
       };
     }),
   );
-  const logWeight = useMutation(api.data.logWeight);
+  const logWeight = useMutation(api.data.logWeight).withOptimisticUpdate((store, { date, weightKg }) =>
+    patchSnapshot(store, (s) => ({
+      ...s,
+      weights: s.weights.some((w) => w.date === date)
+        ? s.weights.map((w) => (w.date === date ? { ...w, weightKg } : w))
+        : [...s.weights, { _id: `temp_${date}` as Id<"weights">, _creationTime: Date.now(), userId: s.profile!.userId, date, weightKg }],
+    })),
+  );
   const setNote = useMutation(api.data.setNote).withOptimisticUpdate((store, { date, slot, note }) =>
     patchSnapshot(store, (s) => {
       const others = s.notes.filter((n) => !(n.date === date && n.slot === slot));
@@ -146,11 +191,24 @@ export function ConvexStoreProvider({ children }: { children: ReactNode }) {
       return { ...s, grocery: { ...base, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } };
     }),
   );
-  const addEvent = useMutation(api.data.addEvent);
-  const removeEvent = useMutation(api.data.removeEvent);
-  const addExercise = useMutation(api.data.addExercise);
-  const updateExercise = useMutation(api.data.updateExercise);
-  const removeExercise = useMutation(api.data.removeExercise);
+  const addEvent = useMutation(api.data.addEvent).withOptimisticUpdate((store, e) =>
+    patchSnapshot(store, (s) => ({ ...s, events: [...s.events, { ...e, _id: `temp_${crypto.randomUUID()}` as Id<"events">, _creationTime: Date.now(), userId: s.profile!.userId }] })),
+  );
+  const removeEvent = useMutation(api.data.removeEvent).withOptimisticUpdate((store, { id }) =>
+    patchSnapshot(store, (s) => ({ ...s, events: s.events.filter((e) => e._id !== id) })),
+  );
+  const addExercise = useMutation(api.data.addExercise).withOptimisticUpdate((store, x) =>
+    patchSnapshot(store, (s) => ({ ...s, exercises: [...s.exercises, { ...x, _id: `temp_${crypto.randomUUID()}` as Id<"exercises">, _creationTime: Date.now(), userId: s.profile!.userId }] })),
+  );
+  const updateExercise = useMutation(api.data.updateExercise).withOptimisticUpdate((store, { id, patch }) =>
+    patchSnapshot(store, (s) => ({
+      ...s,
+      exercises: s.exercises.map((x) => (x._id === id ? { ...x, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } : x)),
+    })),
+  );
+  const removeExercise = useMutation(api.data.removeExercise).withOptimisticUpdate((store, { id }) =>
+    patchSnapshot(store, (s) => ({ ...s, exercises: s.exercises.filter((x) => x._id !== id) })),
+  );
   const deleteMyData = useMutation(api.data.deleteMyData);
 
   const store = useMemo<Store>(() => {
@@ -165,6 +223,7 @@ export function ConvexStoreProvider({ children }: { children: ReactNode }) {
       verificationInfo: snapshot?.verification ?? null,
       latestWeightKg: latest ? latest.weightKg : null,
       dietitianTarget: snapshot?.dietitianTarget ?? null,
+      useRange: (from, to) => useCloudRange(state, snapshot?.historyFrom ?? null, from, to),
       completeOnboarding: async (p, weightKg, credential) => {
         await createProfile({
           name: p.name, role: p.role, sex: p.sex, birthDate: p.birthDate, heightCm: p.heightCm,
@@ -189,10 +248,10 @@ export function ConvexStoreProvider({ children }: { children: ReactNode }) {
       updateReminders: (reminders) => fire(updateReminders({ reminders })),
       updateGrocery: (patch) => fire(updateGrocery(patch)),
       addEvent: ({ date, time, type, title, location, note }) => fire(addEvent({ date, time, type, title, location, note })),
-      removeEvent: (id) => fire(removeEvent({ id: id as Id<"events"> })),
+      removeEvent: (id) => { if (!id.startsWith("temp_")) fire(removeEvent({ id: id as Id<"events"> })); },
       addExercise: ({ date, activityId, minutes, sets, reps, status }) => fire(addExercise({ date, activityId, minutes, sets, reps, status })),
-      updateExercise: (id, { minutes, sets, reps, status }) => fire(updateExercise({ id: id as Id<"exercises">, patch: { minutes, sets, reps, status } })),
-      removeExercise: (id) => fire(removeExercise({ id: id as Id<"exercises"> })),
+      updateExercise: (id, { minutes, sets, reps, status }) => { if (!id.startsWith("temp_")) fire(updateExercise({ id: id as Id<"exercises">, patch: { minutes, sets, reps, status } })); },
+      removeExercise: (id) => { if (!id.startsWith("temp_")) fire(removeExercise({ id: id as Id<"exercises"> })); },
       resetAll: async (opts) => {
         await deleteMyData({ deleteAccount: opts?.deleteAccount });
       },

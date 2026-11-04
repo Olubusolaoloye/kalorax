@@ -18,7 +18,7 @@ Nutrintel runs in two modes:
 | `notify.ts` | Sends reminders and new-message alerts (Node runtime): web push with VAPID keys, WhatsApp Cloud API template messages |
 | `snooze.ts` | Signed "Snooze 10 min" links on alarm reminders: `POST /reminders/snooze` (in `http.ts`) re-sends the alarm 10 minutes later, at most 3 times; links are HMAC-signed with `VAPID_PRIVATE_KEY`, expire after 12 hours and work once |
 | `alerts.ts` | New-message alerts: each chat message schedules one 15 s later, sent only if it's still unread then and is the latest in the burst. Programme chats never put the message text in the notification; WhatsApp alerts say who wrote, at most once an hour per chat |
-| `crons.ts` | Checks for due reminders every 5 minutes |
+| `crons.ts` | Checks for due reminders every 5 minutes; clears speed reports older than 30 days once a day |
 | `interventions.ts` | Paid programmes: catalogue of verified dietitians' offerings, enrolment with intake and consent, member programme view, messages, payment confirmation (`markPaid`) |
 | `payments.ts` | Paystack checkout (`startPayment`) and verification on return (`verifyPayment`) |
 | `admin.ts` | Admin portal (admins only): `overview` (counts, 30-day sign-up and active-member trends, programmes and revenue, messaging and reminders), `feed` (latest sign-ups, verifications, enrolments, payments, payouts, waitlist, new chats) `people` (search by name or email, last active) and `log` (the audit log). No message text or food logs |
@@ -26,7 +26,8 @@ Nutrintel runs in two modes:
 | `social.ts` | Member-to-member chats: find members by @username prefix (`findPeople`), start a chat by @username, send text, a week of the meal plan, or a grocery list that both people can tick off (`tickGroceryItem`), inbox with unread counts, mark read, block. Only the two people in a chat can read it; deleting your data deletes your chats |
 | `clients.ts` | Dietitian tools: profile and payout account, offerings and prices, client list, client detail, set target, send plan, supplements, check-ins, complete; admin payouts |
 | `http.ts` | Convex Auth routes and the Paystack webhook (`/paystack/webhook`, signature-checked) |
-| `me.ts` | `snapshot` — one reactive query with everything the signed-in user needs |
+| `me.ts` | `snapshot` — one reactive query with everything the signed-in user needs (dated logs from the last 180 days, plus planned days ahead and every weigh-in); `history` — older days, up to two months at a time, for the diary and calendar |
+| `vitals.ts` | Real-user speed: browsers send Core Web Vitals (load, tap response, layout shift) to `POST /vitals`; admins see the 75th percentile under **Admin → Overview**. Nothing identifies the visitor |
 | `profile.ts` | Create the profile at the end of onboarding (with an @username); edit personal details (role and verification can't be changed by users); `setUsername`, `usernameAvailable`, `ensureUsername` (gives older profiles a username) |
 | `data.ts` | Diary, water, weight, notes, plan, grocery, calendar and exercise mutations; delete my data / account |
 | `verification.ts` | Upload a document, submit for review, admin review queue and approve/reject |
@@ -135,6 +136,13 @@ Pro uses the same Paystack key and webhook as programmes (Pro references start w
 - **Until Paystack is set up**, Pro is free for every verified dietitian ("early access").
 - **What lapses:** the Workbench and being listed on Programmes, so new members can't book them. Existing clients keep their chat, plans and check-ins, so members who already paid are never cut off.
 - After paying, Paystack returns the dietitian to `<SITE_URL>/pro/paid`. Students and members don't pay for anything here.
+
+## Speed
+
+- Each page is its own JavaScript file; React, the router and Convex sit in a `vendor` file and icons in an `icons` file (`vite.config.ts`), so app releases don't make visitors download the libraries again. Hashed files under `/assets/` are cached for a year (`netlify.toml`). Netlify compresses responses (Brotli or gzip) on its own.
+- Food photos go through Netlify's Image CDN (`/.netlify/images`, allowed sources in `netlify.toml`), which converts them to AVIF or WebP and caches them near visitors. If it fails, the photo loads from Wikimedia directly, then falls back to the emoji.
+- Long chats show the latest 200 messages. Unread counts read only messages after the last read time (`messages.by_enrolment_sent`).
+- Calls to Paystack, WhatsApp, Resend and push services give up after 10–15 seconds.
 
 ## Notes
 

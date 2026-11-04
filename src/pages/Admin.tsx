@@ -1,13 +1,12 @@
 import { useQuery } from "convex/react";
-import {
-  Activity, BadgeCheck, Banknote, Bell, CalendarRange, CircleCheck, CircleX, HeartPulse, MessageCircle, NotebookPen, ShieldAlert, UserPlus, Users,
-} from "lucide-react";
+import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, CircleCheck, CircleX, Gauge, HeartPulse, MessageCircle, NotebookPen, ShieldAlert, UserPlus, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { PageHeader, SearchBox } from "../components/ui";
+import { PageHeader, SearchBox, SkeletonLines } from "../components/ui";
 import { fmt } from "../state/derived";
 import { Payouts, VerificationQueue } from "./AdminReview";
+import { useDebounced } from "../lib/useDebounced";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -48,7 +47,7 @@ export function Admin() {
           </button>
         ))}
       </div>
-      {tab === "overview" && (overview ? <Overview o={overview} onTab={(t) => setParams({ tab: t })} /> : <p className="muted">Loading…</p>)}
+      {tab === "overview" && (overview ? <Overview o={overview} onTab={(t) => setParams({ tab: t })} /> : <SkeletonLines />)}
       {tab === "people" && <People />}
       {tab === "activity" && <Feed />}
       {tab === "verification" && <VerificationQueue />}
@@ -125,10 +124,52 @@ function Overview({ o, onTab }: { o: OverviewData; onTab: (t: Tab) => void }) {
           <Stat label="Reminders sent this week" value={o.reminders.sentThisWeek} />
         </Panel>
       </div>
+      <SpeedPanel />
       <p className="sample-notice">
         Admins see counts and activity, not message text or anyone's food log. Days are in Nigeria time. Figures update live.
       </p>
     </>
+  );
+}
+
+const METRIC_INFO: Record<string, { label: string; ms: boolean }> = {
+  LCP: { label: "Page shows its main content (LCP)", ms: true },
+  INP: { label: "Responds to a tap (INP)", ms: true },
+  CLS: { label: "Layout jumps while loading (CLS)", ms: false },
+  FCP: { label: "First thing on screen (FCP)", ms: true },
+  TTFB: { label: "Server starts answering (TTFB)", ms: true },
+};
+const RATING_TEXT = { good: "Good", "needs-improvement": "Needs work", poor: "Slow" } as const;
+
+/** How fast the app is for real visitors (75th percentile: 3 in 4 visits are at least this fast). */
+function SpeedPanel() {
+  const s = useQuery(api.vitals.summary);
+  if (s === undefined) return null;
+  const show = (ms: boolean, v: number | null) => (v === null ? "—" : ms ? (v >= 1000 ? `${fmt(v / 1000, 1)} s` : `${fmt(v)} ms`) : fmt(v, 2));
+  return (
+    <section className="card admin-panel">
+      <h2 className="row"><Gauge size={17} /> Speed for real visitors <span className="muted small">last 7 days · {fmt(s.reports)} reports</span></h2>
+      {s.reports === 0 ? (
+        <p className="muted small">No reports yet. Visitors' browsers send them from the live site after each visit.</p>
+      ) : (
+        <>
+          <dl>
+            {s.metrics.filter((m) => m.count > 0).map((m) => (
+              <div key={m.metric} className={`admin-stat${m.rating && m.rating !== "good" ? " warn" : ""}`}>
+                <dt>{METRIC_INFO[m.metric].label}</dt>
+                <dd>
+                  {show(METRIC_INFO[m.metric].ms, m.p75)} <span className="muted small">{m.rating ? RATING_TEXT[m.rating] : ""}{m.p75Mobile !== null ? ` · phones ${show(METRIC_INFO[m.metric].ms, m.p75Mobile)}` : ""}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {s.slowestPages.length > 0 && (
+            <p className="small muted">Slowest pages to load: {s.slowestPages.map((p) => `${p.path} (${show(true, p.p75)})`).join(", ")}</p>
+          )}
+          <p className="small muted">Each figure is what 3 in 4 visits beat. Google counts under 2.5 s to load, 200 ms to respond and 0.1 layout shift as good.</p>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -216,7 +257,8 @@ function DailyBars({ title, unit, data, note }: { title: string; unit: string; d
 
 function People() {
   const [search, setSearch] = useState("");
-  const rows = useQuery(api.admin.people, { search: search.trim() || undefined });
+  const query = useDebounced(search.trim(), 300);
+  const rows = useQuery(api.admin.people, { search: query || undefined });
   const role = (r: string | null) => (r === "consumer" ? "Member" : r === "student" ? "Student" : r === "dietitian" ? "Dietitian" : "—");
   return (
     <section>
@@ -264,7 +306,7 @@ const FEED_ICON = {
 
 function Feed() {
   const items = useQuery(api.admin.feed, { limit: 60 });
-  if (items === undefined) return <p className="muted">Loading…</p>;
+  if (items === undefined) return <SkeletonLines />;
   if (items.length === 0) return <div className="card empty-state"><CalendarRange size={28} aria-hidden /><h2>Nothing yet</h2><p className="muted">Sign-ups, enrolments, payments and verifications will appear here as they happen.</p></div>;
   return (
     <section className="card">
@@ -290,7 +332,7 @@ const LOG_LABEL = {
 /** Every admin action, newest first. Entries can't be edited or deleted from the app. */
 function AuditLog() {
   const rows = useQuery(api.admin.log);
-  if (rows === undefined) return <p className="muted">Loading…</p>;
+  if (rows === undefined) return <SkeletonLines />;
   return (
     <section>
       <p className="small muted">Every approval, rejection and payout, with the admin who did it. Entries can't be changed or removed from the app.</p>

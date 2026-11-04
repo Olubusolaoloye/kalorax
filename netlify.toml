@@ -19,3 +19,14 @@
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+# Built JS/CSS files have a content hash in their names, so browsers and Netlify's CDN can keep them for a year.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Food photos come from Wikimedia Commons through Netlify's Image CDN, which resizes them,
+# converts them to AVIF or WebP for each browser and caches them near the visitor.
+[images]
+  remote_images = ["https://upload\\.wikimedia\\.org/.*"]

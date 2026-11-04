@@ -60,4 +60,22 @@ http.route({
   }),
 });
 
+/** Real-user speed reports from browsers (navigator.sendBeacon from src/lib/vitals.ts). */
+http.route({
+  path: "/vitals",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const body = await req.text();
+    if (body.length <= 4000) {
+      try {
+        const reports = JSON.parse(body);
+        if (Array.isArray(reports) && reports.length) await ctx.runMutation(internal.vitals.record, { reports: reports.slice(0, 10) });
+      } catch {
+        // Not JSON: ignore.
+      }
+    }
+    return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": "*" } });
+  }),
+});
+
 export default http;

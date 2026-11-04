@@ -9,6 +9,8 @@ export interface Photo {
   license?: string;
 }
 
+import { md5 } from "../lib/md5";
+
 const P = (file: string, author?: string, license?: string): Photo => ({ file, author, license });
 
 export const PHOTOS: Record<string, Photo> = {
@@ -146,6 +148,25 @@ export function photoFor(key: string): Photo | undefined {
 /** Wikimedia serves a resized thumbnail for this URL (it redirects to upload.wikimedia.org). */
 export function photoUrl(p: Photo, width: number): string {
   return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(p.file)}?width=${width}`;
+}
+
+/** Where Wikimedia stores the original file (no redirect): the path comes from the MD5 of its name. */
+export function photoOriginalUrl(p: Photo): string {
+  const h = md5(p.file);
+  return `https://upload.wikimedia.org/wikipedia/commons/${h[0]}/${h.slice(0, 2)}/${encodeURIComponent(p.file)}`;
+}
+
+/**
+ * The same photo through Netlify's Image CDN: resized, converted to AVIF or WebP (whichever the
+ * browser supports) and cached near the visitor. Allowed sources are listed in netlify.toml.
+ */
+export function photoCdnUrl(p: Photo, width: number): string {
+  return `/.netlify/images?url=${encodeURIComponent(photoOriginalUrl(p))}&w=${width}&q=70`;
+}
+
+/** Image URLs to try in order. The Image CDN only exists on Netlify, so local dev goes straight to Wikimedia. */
+export function photoSources(p: Photo, width: number, onNetlify = import.meta.env.PROD): string[] {
+  return onNetlify ? [photoCdnUrl(p, width), photoUrl(p, width)] : [photoUrl(p, width)];
 }
 
 export function photoPage(p: Photo): string {

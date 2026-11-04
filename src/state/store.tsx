@@ -212,6 +212,9 @@ export interface VerificationInfo {
   hasDocument: boolean;
 }
 
+/** The date-keyed parts of the state, for a range of days (see Store.useRange). */
+export type DatedState = Pick<PersistedState, "diary" | "water" | "notes" | "plan" | "planPortions" | "events" | "exercises">;
+
 export interface Store extends PersistedState {
   /** "local": saved on this device only. "cloud": Convex account. */
   mode: "local" | "cloud";
@@ -224,6 +227,12 @@ export interface Store extends PersistedState {
   latestWeightKg: number | null;
   /** Target set by the member's dietitian on an active programme (cloud mode). */
   dietitianTarget: DietitianTarget | null;
+  /**
+   * Hook: diary, notes, water, plan, events and exercises including the days from `from` to `to`.
+   * In cloud mode the store holds recent months only; older days are fetched when a page asks for them.
+   * `loading` is true while those older days are on their way.
+   */
+  useRange: (from: string, to: string) => DatedState & { loading: boolean };
   completeOnboarding: (profile: Profile, weightKg: number, credential?: string) => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => void;
   addDiaryEntries: (entries: Omit<DiaryEntry, "id">[]) => void;
@@ -280,6 +289,8 @@ export function LocalStoreProvider({ children }: { children: ReactNode }) {
       verificationInfo: null,
       latestWeightKg: latest ? latest.weightKg : null,
       dietitianTarget: null,
+      // Everything is in memory on this device.
+      useRange: () => ({ ...state, loading: false }),
       completeOnboarding: async (profile, weightKg) =>
         setState((s) => ({ ...s, profile, weights: [{ date: todayIso(), weightKg }] })),
       updateProfile: (patch) => setState((s) => (s.profile ? { ...s, profile: { ...s.profile, ...patch } } : s)),
