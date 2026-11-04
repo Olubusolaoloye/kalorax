@@ -135,10 +135,10 @@ export interface PersistedState {
 export const STORAGE_KEY = "kalorax:v1";
 
 /**
- * The app was called Nutrifi before; move data saved under the old "nutrifi:" keys to "kalorax:" once,
- * so nobody loses their logs. Runs before the app reads storage.
+ * The app was called Nutrintel, and Nutrifi before that. Data saved under those names' keys moves to
+ * "kalorax:" once, so nobody loses their logs. Runs before the app reads storage.
+ * OLD_PREFIXES lists the earlier names, newest first.
  */
-/** Earlier names of the app, newest first: their saved data moves to the current "kalorax:" keys. */
 const OLD_PREFIXES = ["nutrintel:", "nutrifi:"];
 
 export function migrateOldStorageKeys(storage: Storage = localStorage) {
