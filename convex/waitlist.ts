@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { internalAction, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { logAdminAction, requireAdmin } from "./helpers";
+import { take } from "./rateLimit";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const role = v.union(v.literal("member"), v.literal("student"), v.literal("dietitian"));
@@ -36,18 +37,42 @@ export function inviteOrder<T extends Pick<Doc<"waitlist">, "createdAt" | "boost
   );
 }
 
-/** Where an entry stands: place in line, out of how many, and their referrals. */
+const COUNTER = "waitlist";
+
+/**
+ * Gives every entry its join number the first time it's needed (entries made before join numbers existed),
+ * and returns the counter. After that, each join just adds one.
+ */
+async function waitlistCounter(ctx: MutationCtx) {
+  const row = await ctx.db.query("counters").withIndex("by_name", (q) => q.eq("name", COUNTER)).unique();
+  if (row) return row;
+  const all = (await ctx.db.query("waitlist").take(20000)).sort((a, b) => a.createdAt - b.createdAt);
+  for (const [i, r] of all.entries()) if (r.seq !== i + 1) await ctx.db.patch(r._id, { seq: i + 1 });
+  const id = await ctx.db.insert("counters", { name: COUNTER, value: all.length });
+  return (await ctx.db.get(id))!;
+}
+
+/**
+ * Where an entry stands: place in line, out of how many, and their referrals. Reads the counter and the
+ * (short) list of people in the first invite group, not the whole waitlist, so it stays cheap as the list grows.
+ */
 async function standing(ctx: QueryCtx, entry: Doc<"waitlist">) {
-  const all = inviteOrder(await ctx.db.query("waitlist").take(20000));
   const referrals = entry.referrals ?? 0;
-  return {
-    code: entry.code ?? null,
-    position: all.findIndex((r) => r._id === entry._id) + 1,
-    total: all.length,
-    referrals,
-    goal: REFERRAL_GOAL,
-    boosted: entry.boostedAt !== undefined,
-  };
+  const base = { code: entry.code ?? null, referrals, goal: REFERRAL_GOAL, boosted: entry.boostedAt !== undefined };
+  const counter = await ctx.db.query("counters").withIndex("by_name", (q) => q.eq("name", COUNTER)).unique();
+  if (!counter || entry.seq === undefined) {
+    // Before the first join numbers are given out (right after this update): the old, full count.
+    const all = inviteOrder(await ctx.db.query("waitlist").take(20000));
+    return { ...base, position: all.findIndex((r) => r._id === entry._id) + 1, total: all.length };
+  }
+  const boosted = await ctx.db.query("waitlist").withIndex("by_boosted", (q) => q.gte("boostedAt", 0)).take(5000);
+  if (entry.boostedAt !== undefined) {
+    const ahead = boosted.filter((b) => b._id !== entry._id && (b.boostedAt! < entry.boostedAt! || (b.boostedAt === entry.boostedAt && b.createdAt < entry.createdAt))).length;
+    return { ...base, position: ahead + 1, total: counter.value };
+  }
+  // Everyone who joined before me, minus those who've moved into the first group, plus that whole group.
+  const boostedBefore = boosted.filter((b) => (b.seq ?? 0) < entry.seq!).length;
+  return { ...base, position: boosted.length + (entry.seq - 1 - boostedBefore) + 1, total: counter.value };
 }
 
 /** Public: join the launch waitlist from the landing page. Idempotent per email; new joiners get a welcome email. */
@@ -62,10 +87,15 @@ export const join = mutation({
       if (!existing.code) await ctx.db.patch(existing._id, { code: await uniqueCode(ctx) });
       return { alreadyJoined: true, emailed: false, code: (await ctx.db.get(existing._id))!.code! };
     }
+    // Open to the internet without sign-in: a cap for everyone together stops scripted floods.
+    await take(ctx, "waitlistJoinGlobal");
     const refCode = ref?.trim().toLowerCase();
     const referrer = refCode && CODE.test(refCode) ? await ctx.db.query("waitlist").withIndex("by_code", (q) => q.eq("code", refCode)).unique() : null;
     const code = await uniqueCode(ctx);
-    await ctx.db.insert("waitlist", { email: clean, role, createdAt: Date.now(), code, ...(referrer ? { referredBy: referrer._id } : {}) });
+    const counter = await waitlistCounter(ctx);
+    const seq = counter.value + 1;
+    await ctx.db.patch(counter._id, { value: seq });
+    await ctx.db.insert("waitlist", { email: clean, role, createdAt: Date.now(), code, seq, ...(referrer ? { referredBy: referrer._id } : {}) });
     if (referrer) {
       const referrals = (referrer.referrals ?? 0) + 1;
       await ctx.db.patch(referrer._id, { referrals, ...(referrals >= REFERRAL_GOAL && referrer.boostedAt === undefined ? { boostedAt: Date.now() } : {}) });

@@ -50,7 +50,8 @@ export default defineSchema({
     reviewerNote: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_document", ["documentId"]),
 
   diary: defineTable({ userId: v.id("users"), ...diaryFields }).index("by_user_date", ["userId", "date"]),
 
@@ -368,6 +369,17 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_used_by", ["usedBy"]),
 
+  /** Rate-limit windows (see rateLimit.ts). */
+  rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() })
+    .index("by_key", ["key"])
+    .index("by_window", ["windowStart"]),
+
+  /** Cached leaderboards, rebuilt at most every few minutes instead of on every log (see challenges.ts). */
+  boardCache: defineTable({ key: v.string(), computedAt: v.number(), data: v.any() }).index("by_key", ["key"]),
+
+  /** Running totals, e.g. the waitlist's join counter that gives each entry its place in line. */
+  counters: defineTable({ name: v.string(), value: v.number() }).index("by_name", ["name"]),
+
   waitlist: defineTable({
     email: v.string(),
     role: v.union(v.literal("member"), v.literal("student"), v.literal("dietitian")),
@@ -380,7 +392,10 @@ export default defineSchema({
     referrals: v.optional(v.number()),
     /** When they reached the referral goal: from then on they're in the first invite group. */
     boostedAt: v.optional(v.number()),
+    /** Join order (1, 2, 3…), so a place in line is worked out without reading the whole list. */
+    seq: v.optional(v.number()),
   })
     .index("by_email", ["email"])
-    .index("by_code", ["code"]),
+    .index("by_code", ["code"])
+    .index("by_boosted", ["boostedAt"]),
 });

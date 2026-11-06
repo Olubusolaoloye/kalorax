@@ -5,15 +5,18 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { ACTIVE_GOAL } from "../src/lib/challenges";
 import { checkDate, checkText, getProfile, requireUser } from "./helpers";
-import { weekScore } from "./challenges";
+import { boardRow, dropCache, isFresh, rankRows, readCache, writeCache, type BoardRow } from "./challenges";
+import { take } from "./rateLimit";
 
-/** A team's shared goal: everyone together reaching the weekly active-minutes guideline. */
-export const TEAM_MAX = 200;
+/** People per team. Each board rebuild reads every member's week, so this keeps one rebuild small. */
+export const TEAM_MAX = 100;
 /** Teams one person can be in at once. */
 const TEAMS_PER_PERSON = 5;
 const CODE = /^[a-z2-9]{8}$/;
 const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const kind = v.union(v.literal("company"), v.literal("gym"), v.literal("club"));
+const boardKey = (teamId: Id<"teams">) => `team:${teamId}`;
+type TeamData = { weekStart: string; today: string; memberCount: number; rows: BoardRow[] };
 
 function newCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
@@ -53,6 +56,7 @@ export const create = mutation({
     const userId = await requireUser(ctx);
     if (!(await getProfile(ctx, userId))) throw new ConvexError("Finish setting up your profile first.");
     if ((await myTeamCount(ctx, userId)) >= TEAMS_PER_PERSON) throw new ConvexError(`You can be in up to ${TEAMS_PER_PERSON} teams.`);
+    await take(ctx, "teamsCreatedPerUser", userId);
     const now = Date.now();
     const teamId = await ctx.db.insert("teams", { name: cleanName(name), kind, code: await uniqueCode(ctx), ownerId: userId, createdAt: now });
     await ctx.db.insert("teamMembers", { teamId, userId, joinedAt: now });
@@ -74,6 +78,7 @@ export const join = mutation({
     const members = await ctx.db.query("teamMembers").withIndex("by_team", (q) => q.eq("teamId", team._id)).take(TEAM_MAX + 1);
     if (members.length >= TEAM_MAX) throw new ConvexError(`This team is full (${TEAM_MAX} people).`);
     await ctx.db.insert("teamMembers", { teamId: team._id, userId, joinedAt: Date.now() });
+    await dropCache(ctx, boardKey(team._id));
     return team._id;
   },
 });
@@ -86,6 +91,7 @@ export const leave = mutation({
     const row = await membership(ctx, teamId, userId);
     if (!row) return;
     await ctx.db.delete(row._id);
+    await dropCache(ctx, boardKey(teamId));
     const team = await ctx.db.get(teamId);
     if (!team) return;
     const next = await ctx.db.query("teamMembers").withIndex("by_team", (q) => q.eq("teamId", teamId)).first();
@@ -103,6 +109,7 @@ export const removeMember = mutation({
     if (args.userId === me) throw new ConvexError("To leave your own team, use Leave team.");
     const row = await membership(ctx, args.teamId, args.userId);
     if (row) await ctx.db.delete(row._id);
+    await dropCache(ctx, boardKey(args.teamId));
   },
 });
 
@@ -142,29 +149,34 @@ export const mine = query({
   },
 });
 
-/** A team's weekly leaderboard and shared goal. Members only. */
-export const board = query({
+/** Rebuilds the team board if it's older than a few minutes or someone joined or left. Members only. */
+export const refreshBoard = mutation({
   args: { teamId: v.id("teams"), weekStart: v.string(), today: v.string() },
   handler: async (ctx, { teamId, weekStart, today }) => {
     const me = await requireUser(ctx);
     checkDate(weekStart);
     checkDate(today);
+    if (!(await ctx.db.get(teamId)) || !(await membership(ctx, teamId, me))) return;
+    if (isFresh(await readCache(ctx, boardKey(teamId)), weekStart, today)) return;
+    const members = await ctx.db.query("teamMembers").withIndex("by_team", (q) => q.eq("teamId", teamId)).take(TEAM_MAX);
+    const rows = rankRows(await Promise.all(members.map((m) => boardRow(ctx, m.userId, me, weekStart, today))));
+    const data: TeamData = { weekStart, today, memberCount: members.length, rows };
+    await writeCache(ctx, boardKey(teamId), data);
+  },
+});
+
+/** A team's weekly leaderboard and shared goal (from the cache). Members only. */
+export const board = query({
+  args: { teamId: v.id("teams"), weekStart: v.string(), today: v.string() },
+  handler: async (ctx, { teamId, weekStart }) => {
+    const me = await requireUser(ctx);
+    checkDate(weekStart);
     const team = await ctx.db.get(teamId);
     if (!team || !(await membership(ctx, teamId, me))) return null;
-    const members = await ctx.db.query("teamMembers").withIndex("by_team", (q) => q.eq("teamId", teamId)).take(TEAM_MAX);
-    const rows = await Promise.all(members.map(async (m) => {
-      const [profile, score] = await Promise.all([getProfile(ctx, m.userId), weekScore(ctx, m.userId, weekStart, today)]);
-      return {
-        userId: m.userId,
-        me: m.userId === me,
-        name: profile?.name.split(" ")[0] ?? "Member",
-        username: profile?.username ?? null,
-        points: score.points,
-        daysLogged: score.daysLogged,
-        activeMinutes: score.activeMinutes,
-      };
-    }));
-    rows.sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+    const cache = await readCache(ctx, boardKey(teamId));
+    const data = cache && (cache.data as TeamData).weekStart === weekStart ? (cache.data as TeamData) : null;
+    // "me" is worked out for whoever is looking, since the cached board is shared by the whole team.
+    const rows = (data?.rows ?? []).map((r) => ({ ...r, me: r.userId === me }));
     const activeMinutes = rows.reduce((t, r) => t + r.activeMinutes, 0);
     return {
       id: team._id,
@@ -178,6 +190,7 @@ export const board = query({
       activeMinutes,
       activeGoal: ACTIVE_GOAL * rows.length,
       rows,
+      updatedAt: cache ? cache.computedAt : null,
     };
   },
 });

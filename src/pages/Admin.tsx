@@ -145,7 +145,7 @@ function CoachPanel() {
   const usd = (n: number) => `$${n.toFixed(2)}`;
   return (
     <section className="card admin-panel">
-      <h2 className="row"><Sparkles size={17} /> AI coach <span className="muted small">{s.enabled ? `on · ${s.dailyLimit} messages per member a day` : "off: add ANTHROPIC_API_KEY in Convex to switch it on"}</span></h2>
+      <h2 className="row"><Sparkles size={17} /> AI coach <span className="muted small">{s.enabled ? `on · ${s.dailyLimit} messages per member a day · pauses for the day at $${s.dailyBudgetUsd} spend` : "off: add ANTHROPIC_API_KEY in Convex to switch it on"}</span></h2>
       <dl>
         <Stat label="Replies today" value={s.today.replies} />
         <Stat label="Cost today" text={usd(s.today.costUsd)} />

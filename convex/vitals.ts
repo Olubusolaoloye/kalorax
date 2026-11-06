@@ -4,6 +4,7 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 import { requireAdmin } from "./helpers";
+import { tryTake } from "./rateLimit";
 
 const DAY = 86_400_000;
 const KEEP_DAYS = 30;
@@ -46,6 +47,8 @@ export const record = internalMutation({
   args: { reports: v.array(v.any()) },
   handler: async (ctx, { reports }) => {
     const now = Date.now();
+    // Anyone can post here, so the whole endpoint has an hourly cap; extra reports are dropped.
+    if (!(await tryTake(ctx, "vitalsGlobal", "", Math.min(reports.length, 10)))) return;
     for (const r of reports.slice(0, 10)) {
       const row = cleanReport(r, now);
       if (row) await ctx.db.insert("vitals", row);

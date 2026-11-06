@@ -4,7 +4,8 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import { action } from "./_generated/server";
+import { action, type ActionCtx } from "./_generated/server";
+import { LIMITS } from "./rateLimit";
 import { PRO_MONTHS } from "./pro";
 
 const PAYSTACK = "https://api.paystack.co";
@@ -16,6 +17,14 @@ function reference(prefix: "nf" | "np") {
 }
 
 const siteUrl = () => (process.env.SITE_URL ?? "").replace(/\/$/, "");
+
+/** Signed-in member, within the hourly limit for this kind of call. */
+async function limitedUser(ctx: ActionCtx, name: "paymentStartsPerUser" | "paymentChecksPerUser") {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new ConvexError("Please sign in.");
+  if (!(await ctx.runMutation(internal.rateLimit.takeInternal, { name, scope: userId }))) throw new ConvexError(LIMITS[name].message);
+  return userId;
+}
 
 /** Paystack call that gives up after 15 seconds, so a member is never left waiting on a hung request. */
 async function paystackFetch(path: string, init: RequestInit) {
@@ -59,8 +68,7 @@ async function paystackPaidKobo(secret: string, ref: string): Promise<number | n
 export const startPayment = action({
   args: { enrolmentId: v.id("enrolments") },
   handler: async (ctx, { enrolmentId }): Promise<{ url?: string; demo?: boolean }> => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new ConvexError("Please sign in.");
+    const userId = await limitedUser(ctx, "paymentStartsPerUser");
     const info = await ctx.runQuery(internal.interventions.paymentInfo, { enrolmentId, userId });
     if (info.status !== "pending_payment") throw new ConvexError("This programme is already paid for.");
     const ref = reference("nf");
@@ -86,6 +94,7 @@ export const startPayment = action({
 export const verifyPayment = action({
   args: { reference: v.string() },
   handler: async (ctx, { reference: ref }): Promise<"activated" | "already_active" | "unknown" | "amount_mismatch" | "not_paid"> => {
+    await limitedUser(ctx, "paymentChecksPerUser");
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) throw new ConvexError("Payments aren't switched on yet.");
     if (!/^nf_[0-9a-f]{24}$/.test(ref)) return "unknown";
@@ -99,8 +108,7 @@ export const verifyPayment = action({
 export const startProPayment = action({
   args: { months: v.number() },
   handler: async (ctx, { months }): Promise<{ url?: string; demo?: boolean }> => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new ConvexError("Please sign in.");
+    const userId = await limitedUser(ctx, "paymentStartsPerUser");
     if (!(PRO_MONTHS as readonly number[]).includes(months)) throw new ConvexError("Choose 1, 3, 6 or 12 months.");
     const info = await ctx.runQuery(internal.pro.checkoutInfo, { userId });
     const amountNaira = info.priceNaira * months;
@@ -121,6 +129,7 @@ export const startProPayment = action({
 export const verifyProPayment = action({
   args: { reference: v.string() },
   handler: async (ctx, { reference: ref }): Promise<"activated" | "already_active" | "unknown" | "amount_mismatch" | "not_paid"> => {
+    await limitedUser(ctx, "paymentChecksPerUser");
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) throw new ConvexError("Payments aren't switched on yet.");
     if (!/^np_[0-9a-f]{24}$/.test(ref)) return "unknown";

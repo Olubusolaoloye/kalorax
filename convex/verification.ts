@@ -1,12 +1,14 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { checkText, getProfile, logAdminAction, requireAdmin, requireUser } from "./helpers";
+import { take } from "./rateLimit";
 
 /** Short-lived upload URL for a licence or student ID document. */
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireUser(ctx);
+    const userId = await requireUser(ctx);
+    await take(ctx, "documentUploadPerUser", userId);
     return ctx.storage.generateUploadUrl();
   },
 });

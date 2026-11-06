@@ -3,12 +3,14 @@ import { mutation } from "./_generated/server";
 import { checkDate, checkRange, checkText, getProfile, ownRow, requireUser } from "./helpers";
 import { diaryFields, eventFields, exerciseFields, isoDate, meal, noteFields, noteSlot } from "./validators";
 import { deleteConversationsOf } from "./social";
+import { take } from "./rateLimit";
 
 export const addDiaryEntries = mutation({
   args: { entries: v.array(v.object(diaryFields)) },
   handler: async (ctx, { entries }) => {
     const userId = await requireUser(ctx);
     if (entries.length > 20) throw new ConvexError("Too many items at once.");
+    await take(ctx, "diaryEntriesPerUser", userId, entries.length);
     for (const e of entries) {
       checkDate(e.date);
       checkRange(e.grams, 1, 5000, "Portion (g)");

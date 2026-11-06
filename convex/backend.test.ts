@@ -1096,6 +1096,16 @@ describe("challenges and teams", () => {
     await m.as.mutation(api.profile.create, { ...PROFILE, name, role: "consumer", weightKg: 70 });
     return m;
   }
+  type Member = { as: ReturnType<ReturnType<typeof convexTest>["withIdentity"]> };
+  /** Boards are cached: ask for a refresh (as the page does), then read. */
+  const friendsOf = async (m: Member) => {
+    await m.as.mutation(api.challenges.refreshFriends, { weekStart: WEEK, today: TODAY });
+    return m.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY });
+  };
+  const boardOf = async (m: Member, teamId: Id<"teams">) => {
+    await m.as.mutation(api.teams.refreshBoard, { teamId, weekStart: WEEK, today: TODAY });
+    return m.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY });
+  };
   const logMeals = (m: { as: ReturnType<ReturnType<typeof convexTest>["withIdentity"]> }, dates: string[]) =>
     m.as.mutation(api.data.addDiaryEntries, { entries: dates.flatMap((date) => (["Breakfast", "Lunch", "Dinner"] as const).map((meal) => ({ date, meal, foodId: "jollof", grams: 140, portionLabel: "2 cooking spoons" }))) });
 
@@ -1111,18 +1121,19 @@ describe("challenges and teams", () => {
     await bisi.as.mutation(api.data.addExercise, { date: "2026-10-07", activityId: "walking", minutes: 160, status: "completed" });
 
     // Not joined yet: nothing shown.
-    expect(await ada.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY })).toEqual({ joined: false, rows: [], friendsCount: 2 });
+    expect(await friendsOf(ada)).toEqual({ joined: false, rows: [], friendsCount: null, updatedAt: null });
     await ada.as.mutation(api.challenges.setLeaderboard, { on: true });
     // Friends who haven't joined stay hidden.
-    expect((await ada.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY })).rows.map((r) => r.name)).toEqual(["Ada"]);
+    expect((await friendsOf(ada)).rows.map((r) => r.name)).toEqual(["Ada"]);
     await bisi.as.mutation(api.challenges.setLeaderboard, { on: true });
-    const board = await ada.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY });
+    const board = await friendsOf(ada);
     // Bisi: 5 days x 10 + 3 meals on 5 days (100) + 150 active minutes (100). Ada: 2 days x 10.
     expect(board.rows.map((r) => [r.name, r.points, r.me])).toEqual([["Bisi", 250, false], ["Ada", 20, true]]);
     expect(Object.keys(board.rows[0]).sort()).toEqual(["activeMinutes", "challengesDone", "daysLogged", "me", "name", "points", "username"]);
+    expect(board.friendsCount).toBe(2);
     // Chidi isn't Bisi's friend, so Bisi sees only Ada.
     await chidi.as.mutation(api.challenges.setLeaderboard, { on: true });
-    expect((await bisi.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY })).rows.map((r) => r.name).sort()).toEqual(["Ada", "Bisi"]);
+    expect((await friendsOf(bisi)).rows.map((r) => r.name).sort()).toEqual(["Ada", "Bisi"]);
   });
 
   it("runs a team: join by code, shared board, owner controls, and leaving", async () => {
@@ -1131,18 +1142,18 @@ describe("challenges and teams", () => {
     const staff = await member(t, "staff@acme.ng", "Tayo");
     const outsider = await member(t, "out@example.com", "Kemi");
     const teamId = await boss.as.mutation(api.teams.create, { name: "  Acme   Lagos ", kind: "company" });
-    const owner = (await boss.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    const owner = (await boardOf(boss, teamId))!;
     expect(owner).toMatchObject({ name: "Acme Lagos", owner: true, activeGoal: 150 });
     expect(owner.code).toMatch(/^[a-z2-9]{8}$/);
 
     await expect(staff.as.mutation(api.teams.join, { code: "wrongcod" })).rejects.toThrow(/doesn't match/);
     expect(await staff.as.mutation(api.teams.join, { code: owner.code!.toUpperCase() })).toBe(teamId);
     await logMeals(staff, ["2026-10-05"]);
-    const seen = (await staff.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    const seen = (await boardOf(staff, teamId))!;
     expect(seen).toMatchObject({ owner: false, code: null, totalPoints: 10, activeGoal: 300 });
     expect(seen.rows.map((r) => r.name)).toEqual(["Tayo", "Funmi"]);
     // Non-members see nothing, and members can't use owner controls.
-    expect(await outsider.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY })).toBeNull();
+    expect(await boardOf(outsider, teamId)).toBeNull();
     await expect(staff.as.mutation(api.teams.newTeamCode, { teamId })).rejects.toThrow(/Only the person who created/);
     await expect(staff.as.mutation(api.teams.removeMember, { teamId, userId: boss.userId })).rejects.toThrow(/Only the person who created/);
 
@@ -1152,7 +1163,7 @@ describe("challenges and teams", () => {
 
     // The owner leaving hands the team over; the last one out closes it.
     await boss.as.mutation(api.teams.leave, { teamId });
-    expect((await staff.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!.owner).toBe(true);
+    expect((await boardOf(staff, teamId))!.owner).toBe(true);
     await staff.as.mutation(api.teams.leave, { teamId });
     expect(await t.run((ctx) => ctx.db.get(teamId))).toBeNull();
   });
@@ -1162,12 +1173,93 @@ describe("challenges and teams", () => {
     const a = await member(t, "a@example.com", "Ada");
     const b = await member(t, "b@example.com", "Bisi");
     const teamId = await a.as.mutation(api.teams.create, { name: "Run club", kind: "club" });
-    const { code } = (await a.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    const { code } = (await boardOf(a, teamId))!;
     await b.as.mutation(api.teams.join, { code: code! });
     await a.as.mutation(api.data.deleteMyData, {});
-    const after = (await b.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    const after = (await boardOf(b, teamId))!;
     expect(after.owner).toBe(true);
     expect(after.rows.map((r) => r.name)).toEqual(["Bisi"]);
+  });
+});
+
+describe("launch protections", () => {
+  async function member(t: ReturnType<typeof convexTest>, email = "ada@example.com") {
+    const m = await signedIn(t, email);
+    await m.as.mutation(api.profile.create, { ...PROFILE, role: "consumer", weightKg: 70 });
+    return m;
+  }
+
+  it("pauses the AI coach for everyone once the day's spend cap is reached", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    vi.stubEnv("COACH_DAILY_BUDGET_USD", "10");
+    const t = convexTest(schema, modules);
+    const m = await member(t);
+    await m.as.mutation(api.coach.consent, {});
+    const { lagosToday } = await import("./interventions");
+    await t.run((ctx) => ctx.db.insert("coachDaily", { day: lagosToday(), replies: 400, inputTokens: 0, outputTokens: 0, costUsd: 10.5 }));
+    await expect(m.as.mutation(api.coach.send, { text: "hi" })).rejects.toThrow(/taking a break/);
+    await expect(m.as.mutation(api.coach.photoUploadUrl, {})).rejects.toThrow(/taking a break/);
+  });
+
+  it("limits photo upload links per member per day", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    const t = convexTest(schema, modules);
+    const m = await member(t);
+    await m.as.mutation(api.coach.consent, {});
+    for (let i = 0; i < 30; i++) await m.as.mutation(api.coach.photoUploadUrl, {});
+    await expect(m.as.mutation(api.coach.photoUploadUrl, {})).rejects.toThrow(/a lot of photos/);
+    // Someone else still can.
+    const other = await member(t, "bisi@example.com");
+    await other.as.mutation(api.coach.consent, {});
+    await other.as.mutation(api.coach.photoUploadUrl, {});
+  });
+
+  it("caps reset codes per address", async () => {
+    const t = convexTest(schema, modules);
+    const take = () => t.mutation(internal.rateLimit.takeInternal, { name: "passwordResetPerEmail", scope: "ada@example.com" });
+    expect([await take(), await take(), await take(), await take()]).toEqual([true, true, true, false]);
+    expect(await t.mutation(internal.rateLimit.takeInternal, { name: "passwordResetPerEmail", scope: "bisi@example.com" })).toBe(true);
+    await expect(t.mutation(internal.rateLimit.takeInternal, { name: "nope", scope: "" })).rejects.toThrow(/Unknown limit/);
+  });
+
+  it("works out places in line from join numbers, including entries made before them", async () => {
+    const t = convexTest(schema, modules);
+    // Two entries from before join numbers existed.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("waitlist", { email: "old1@example.com", role: "member", createdAt: 1, code: "aaaaaaaa" });
+      await ctx.db.insert("waitlist", { email: "old2@example.com", role: "member", createdAt: 2, code: "bbbbbbbb" });
+    });
+    const { code } = await t.mutation(api.waitlist.join, { email: "new@example.com", role: "member" });
+    expect(await t.query(api.waitlist.status, { code })).toMatchObject({ position: 3, total: 3 });
+    expect(await t.query(api.waitlist.status, { code: "bbbbbbbb" })).toMatchObject({ position: 2, total: 3 });
+    for (const n of [1, 2, 3]) await t.mutation(api.waitlist.join, { email: `f${n}@example.com`, role: "member", ref: code });
+    expect(await t.query(api.waitlist.status, { code })).toMatchObject({ position: 1, total: 6, boosted: true });
+    expect(await t.query(api.waitlist.status, { code: "aaaaaaaa" })).toMatchObject({ position: 2 });
+    expect(await t.query(api.waitlist.status, { code: "bbbbbbbb" })).toMatchObject({ position: 3 });
+  });
+
+  it("deletes uploads never attached to anything, after a day", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = convexTest(schema, modules);
+      const m = await member(t);
+      const stray = await t.run((ctx) => ctx.storage.store(new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: "image/jpeg" })));
+      const used = await t.run((ctx) => ctx.storage.store(new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: "image/jpeg" })));
+      await t.run((ctx) => ctx.db.insert("coachMessages", { userId: m.userId, role: "user", text: "photo", status: "done", createdAt: Date.now(), imageId: used }));
+      expect(await t.mutation(internal.storageCleanup.run, {})).toBe(0); // too new
+      vi.advanceTimersByTime(30 * 3_600_000);
+      expect(await t.mutation(internal.storageCleanup.run, {})).toBe(1);
+      expect(await t.run(async (ctx) => (await ctx.storage.get(stray)) === null)).toBe(true);
+      expect(await t.run(async (ctx) => (await ctx.storage.get(used)) === null)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("only lets signed-in members check payments", async () => {
+    const t = convexTest(schema, modules);
+    await expect(t.action(api.payments.verifyPayment, { reference: "nf_000000000000000000000000" })).rejects.toThrow(/sign in/);
+    await expect(t.action(api.payments.verifyProPayment, { reference: "np_000000000000000000000000" })).rejects.toThrow(/sign in/);
   });
 });
 
@@ -1422,7 +1514,7 @@ describe("AI coach", () => {
 
       // Clearing the chat deletes the photo too.
       await m.as.mutation(api.coach.clear, {});
-      expect(await t.run((ctx) => ctx.storage.get(imageId))).toBeNull();
+      expect(await t.run(async (ctx) => (await ctx.storage.get(imageId)) === null)).toBe(true);
     } finally {
       vi.unstubAllGlobals();
       vi.useRealTimers();

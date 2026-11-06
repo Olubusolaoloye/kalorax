@@ -14,6 +14,7 @@ import { foodById, nutrientsFor } from "../src/data/foods";
 import { recipeById } from "../src/data/recipes";
 import { regionById } from "../src/data/regions";
 import { consumerDailyTarget } from "../src/lib/nutrition";
+import { take } from "./rateLimit";
 
 /** Replies per member per Lagos day (admins aren't limited, for testing). */
 export const DAILY_LIMIT = 15;
@@ -88,8 +89,22 @@ async function canUseCoach(ctx: QueryCtx, userId: Id<"users">) {
   if (!(await getProfile(ctx, userId))) throw new ConvexError("Finish setting up your profile first.");
 }
 
-/** Not mid-reply and within today's allowance. */
+/**
+ * Spend cap for everyone together, per Lagos day, in US dollars (COACH_DAILY_BUDGET_USD, default $25).
+ * Stops a flood of new accounts running up the AI bill; the coach is back the next day.
+ */
+export const coachDailyBudgetUsd = () => {
+  const n = Number(process.env.COACH_DAILY_BUDGET_USD);
+  return Number.isFinite(n) && n > 0 ? n : 25;
+};
+
+async function spentTodayUsd(ctx: QueryCtx) {
+  return (await ctx.db.query("coachDaily").withIndex("by_day", (q) => q.eq("day", lagosToday())).unique())?.costUsd ?? 0;
+}
+
+/** Not mid-reply, within today's allowance, and within the day's overall spend. */
 async function readyForMessage(ctx: QueryCtx, userId: Id<"users">) {
+  if ((await spentTodayUsd(ctx)) >= coachDailyBudgetUsd()) throw new ConvexError("The coach is taking a break for today. Please try again tomorrow.");
   const last = await ctx.db.query("coachMessages").withIndex("by_user", (q) => q.eq("userId", userId)).order("desc").first();
   if (last?.status === "streaming") throw new ConvexError("The coach is still replying. Give it a moment.");
   if (!(await isAdmin(ctx, userId)) && (await usedToday(ctx, userId)) >= DAILY_LIMIT)
@@ -103,6 +118,7 @@ export const photoUploadUrl = mutation({
     const userId = await requireUser(ctx);
     await canUseCoach(ctx, userId);
     await readyForMessage(ctx, userId);
+    await take(ctx, "coachPhotoPerUser", userId);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -328,6 +344,7 @@ export const adminStats = query({
     return {
       enabled: coachOn(),
       dailyLimit: DAILY_LIMIT,
+      dailyBudgetUsd: coachDailyBudgetUsd(),
       today: sum(rows.filter((r) => r.day === today)),
       last30: sum(rows),
     };

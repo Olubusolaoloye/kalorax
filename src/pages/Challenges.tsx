@@ -2,7 +2,7 @@
 // Your own card is worked out on the device; leaderboards come from the server with the same scoring.
 import { useMutation, useQuery } from "convex/react";
 import { Building2, Copy, Dumbbell, LogOut, RefreshCw, Trophy, UserMinus, Users } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -13,6 +13,17 @@ import { dailyWaterTargetMl } from "../lib/nutrition/water";
 import { todayIso, useStore, weekDates } from "../state/store";
 
 type TeamKind = "company" | "gym" | "club";
+
+/** Boards are rebuilt on the server at most every 3 minutes: ask when the page opens, then every 3 minutes while it's open. */
+function useRefresh(refresh: () => Promise<unknown>, deps: unknown[]) {
+  useEffect(() => {
+    const run = () => void refresh().catch(() => {});
+    run();
+    const t = setInterval(run, 3 * 60_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
 const KIND: Record<TeamKind, { label: string; icon: typeof Building2 }> = {
   company: { label: "Company", icon: Building2 },
   gym: { label: "Gym", icon: Dumbbell },
@@ -121,6 +132,9 @@ function Ranking({ rows, extra }: { rows: Row[]; extra?: (r: Row, i: number) => 
 export function FriendsBoard({ weekStart, today }: { weekStart: string; today: string }) {
   const board = useQuery(api.challenges.friends, { weekStart, today });
   const setLeaderboard = useMutation(api.challenges.setLeaderboard);
+  const refresh = useMutation(api.challenges.refreshFriends);
+  const joined = board?.joined;
+  useRefresh(() => (joined ? refresh({ weekStart, today }) : Promise.resolve()), [joined, weekStart, today]);
   if (board === undefined) return <Card title="Friends"><SkeletonLines rows={3} /></Card>;
   if (board === null) return null;
   return (
@@ -215,6 +229,8 @@ export function Teams({ weekStart, today }: { weekStart: string; today: string }
 
 function TeamBoard({ teamId, weekStart, today, onLeft }: { teamId: Id<"teams">; weekStart: string; today: string; onLeft: () => void }) {
   const board = useQuery(api.teams.board, { teamId, weekStart, today });
+  const refresh = useMutation(api.teams.refreshBoard);
+  useRefresh(() => refresh({ teamId, weekStart, today }), [teamId, weekStart, today, board?.rows.length === 0]);
   const leave = useMutation(api.teams.leave);
   const removeMember = useMutation(api.teams.removeMember);
   const newCode = useMutation(api.teams.newTeamCode);
