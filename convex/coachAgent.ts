@@ -58,7 +58,8 @@ export const respond = internalAction({
         if (text && !/\s$/.test(text)) text += "\n\n";
         const stream = client.beta.messages.stream({
           model: MODEL,
-          max_tokens: 8000,
+          // Replies are short; this also caps what one reply can cost.
+          max_tokens: 2000,
           betas: ["server-side-fallback-2026-07-01"],
           fallbacks: "default",
           output_config: { effort: "low" },

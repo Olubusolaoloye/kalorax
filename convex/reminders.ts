@@ -6,6 +6,7 @@ import { requireUser } from "./helpers";
 import { dishLabel } from "../src/lib/planner";
 import { dailyWaterTargetMl } from "../src/lib/nutrition";
 import { dueReminders, localParts, normalizePhone, type ReminderContext, type ReminderMessage } from "../src/lib/reminders";
+import { take } from "./rateLimit";
 
 const CODE_TTL_MS = 10 * 60_000;
 const MAX_CODES_PER_HOUR = 3;
@@ -84,6 +85,9 @@ export const startWhatsApp = mutation({
     const now = Date.now();
     const recent = (row?.codesSentAt ?? []).filter((t) => now - t < 3600_000);
     if (recent.length >= MAX_CODES_PER_HOUR) throw new ConvexError("Too many codes. Please try again in an hour.");
+    // Each code costs money and goes to whatever number was typed: cap per number and for everyone.
+    await take(ctx, "whatsappCodePerPhone", phone);
+    await take(ctx, "whatsappCodeGlobal");
 
     const digits = new Uint32Array(1);
     crypto.getRandomValues(digits);

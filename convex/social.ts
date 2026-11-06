@@ -7,6 +7,7 @@ import { scheduleMessageAlert } from "./alerts";
 import { checkRange, checkText, getProfile, hasAccess, requireUser } from "./helpers";
 import { normalizeUsername, profileByUsername } from "./usernames";
 import { sharedGrocery, sharedPlan } from "./validators";
+import { take } from "./rateLimit";
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -131,6 +132,7 @@ export const start = mutation({
     const [a, b] = userId < other.userId ? [userId, other.userId] : [other.userId, userId];
     const existing = await ctx.db.query("conversations").withIndex("by_pair", (q) => q.eq("a", a).eq("b", b)).unique();
     if (existing) return existing._id;
+    await take(ctx, "newChatsPerUser", userId);
     // Nothing read yet, so a message sent in the same millisecond still counts as unread.
     return ctx.db.insert("conversations", { a, b, lastMessageAt: Date.now(), aReadAt: 0, bReadAt: 0 });
   },
