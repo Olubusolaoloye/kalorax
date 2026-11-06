@@ -138,3 +138,15 @@ export const sharedGrocery = v.object({
   people: v.number(),
   items: v.array(v.object({ key: v.string(), name: v.string(), category: v.string(), qty: v.number(), unit: v.string(), costNaira: v.number() })),
 });
+
+/** The AI coach's estimate for a food photo. Mirrors PhotoAnalysis in convex/coachTools.ts. */
+export const photoAnalysis = v.object({
+  dish: v.string(),
+  confidence: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+  items: v.array(v.object({ name: v.string(), amount: v.string(), kcal: v.number() })),
+  kcal: v.number(),
+  carbs: v.number(),
+  protein: v.number(),
+  fat: v.number(),
+  note: v.optional(v.string()),
+});

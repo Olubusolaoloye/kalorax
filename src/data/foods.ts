@@ -488,7 +488,40 @@ function recipeAsFood(r: Recipe): Food {
   };
 }
 
+/** A meal estimated from a photo: "custom:<kcal>:<carbs>:<protein>:<fat>:<name>", for one serving (100 "g" = 1 serving). */
+export const CUSTOM_PREFIX = "custom:";
+export interface CustomMeal { name: string; kcal: number; carbs: number; protein: number; fat: number }
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Problems with an estimated meal, or null if it can be logged. */
+export function customMealProblem(m: CustomMeal): string | null {
+  const name = m.name.trim();
+  if (!name || name.length > 80) return "name must be 1-80 characters";
+  if (!(m.kcal >= 1 && m.kcal <= 5000)) return "kcal must be between 1 and 5000";
+  for (const [k, v] of [["carbs", m.carbs], ["protein", m.protein], ["fat", m.fat]] as const) if (!(v >= 0 && v <= 600)) return `${k} must be between 0 and 600 g`;
+  return null;
+}
+
+export function customFoodId(m: CustomMeal): string {
+  return `${CUSTOM_PREFIX}${Math.round(m.kcal)}:${round1(m.carbs)}:${round1(m.protein)}:${round1(m.fat)}:${encodeURIComponent(m.name.trim().slice(0, 80))}`;
+}
+
+function customFood(id: string): Food | undefined {
+  const [kcal, carbs, protein, fat, ...rest] = id.slice(CUSTOM_PREFIX.length).split(":");
+  let name: string;
+  try { name = decodeURIComponent(rest.join(":")); } catch { return undefined; }
+  const m = { name, kcal: Number(kcal), carbs: Number(carbs), protein: Number(protein), fat: Number(fat) };
+  if (customMealProblem(m)) return undefined;
+  return {
+    id, name: m.name, cuisine: "International", category: "From a photo", emoji: "📷", aliases: [],
+    kcal: m.kcal, carbs: m.carbs, protein: m.protein, fat: m.fat,
+    portions: [{ label: "½ serving", grams: 50 }, { label: "1 serving", grams: 100 }],
+    source: "Estimated from a photo by the AI coach",
+  };
+}
+
 export function foodById(id: string): Food | undefined {
+  if (id.startsWith(CUSTOM_PREFIX)) return customFood(id);
   if (id.startsWith(RECIPE_PREFIX)) {
     const r = recipeById(id.slice(RECIPE_PREFIX.length));
     return r ? recipeAsFood(r) : undefined;

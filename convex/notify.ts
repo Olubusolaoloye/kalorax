@@ -13,7 +13,7 @@ function pushReady(): boolean {
   const pub = process.env.VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
   if (!pub || !priv) return false;
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? "mailto:hello@kalorax.ng", pub, priv);
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? "mailto:hello@kalorax.app", pub, priv);
   return true;
 }
 

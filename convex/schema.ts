@@ -13,6 +13,7 @@ import {
   noteFields,
   noteSlot,
   planPrefs,
+  photoAnalysis,
   profileFields,
   reminderSettings,
   sharedGrocery,
@@ -137,8 +138,14 @@ export default defineSchema({
         }),
       ),
     ),
+    /** A food photo the member sent (theirs only; deleted with the chat). */
+    imageId: v.optional(v.id("_storage")),
+    /** The coach's breakdown of a food photo: the dish, its ingredients and estimated nutrition. */
+    analysis: v.optional(photoAnalysis),
     createdAt: v.number(),
-  }).index("by_user", ["userId", "createdAt"]),
+  })
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_image", ["imageId"]),
 
   /** AI coach usage per Lagos day, across everyone, for the admin overview (no message content). */
   coachDaily: defineTable({

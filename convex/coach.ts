@@ -8,6 +8,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { checkText, getProfile, hasAccess, isAdmin, requireAdmin, requireUser } from "./helpers";
+import { photoAnalysis } from "./validators";
 import { activeTarget, lagosToday } from "./interventions";
 import { foodById, nutrientsFor } from "../src/data/foods";
 import { recipeById } from "../src/data/recipes";
@@ -18,6 +19,10 @@ import { consumerDailyTarget } from "../src/lib/nutrition";
 export const DAILY_LIMIT = 15;
 const HISTORY = 16;
 const MAX_TEXT = 1000;
+/** Photos the model can read (the app shrinks them to about 1280 px before upload). */
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_PHOTO_BYTES = 4_500_000;
+const PHOTO_PROMPT = "What's in this meal? Give me the ingredients and calories.";
 
 const dayStart = (day: string) => Date.parse(`${day}T00:00:00+01:00`);
 const coachOn = () => !!process.env.ANTHROPIC_API_KEY;
@@ -52,14 +57,16 @@ export const thread = query({
       consented: !!settings?.coachConsentAt,
       limit: admin ? null : DAILY_LIMIT,
       remaining: admin ? null : Math.max(0, DAILY_LIMIT - used),
-      messages: rows.reverse().map((m) => ({
+      messages: await Promise.all(rows.reverse().map(async (m) => ({
         id: m._id,
         role: m.role,
         text: m.text,
         status: m.status,
         actions: m.actions ?? [],
+        imageUrl: m.imageId ? await ctx.storage.getUrl(m.imageId) : null,
+        analysis: m.analysis ?? null,
         createdAt: new Date(m.createdAt).toISOString(),
-      })),
+      }))),
     };
   },
 });
@@ -75,24 +82,56 @@ export const consent = mutation({
   },
 });
 
-/** Ask the coach something. The reply streams into a new assistant message. */
-export const send = mutation({
-  args: { text: v.string() },
-  handler: async (ctx, { text }) => {
+async function canUseCoach(ctx: QueryCtx, userId: Id<"users">) {
+  if (!coachOn()) throw new ConvexError("The AI coach isn't switched on yet.");
+  if (!(await settingsOf(ctx, userId))?.coachConsentAt) throw new ConvexError("Please agree to share your logs with the coach first.");
+  if (!(await getProfile(ctx, userId))) throw new ConvexError("Finish setting up your profile first.");
+}
+
+/** Not mid-reply and within today's allowance. */
+async function readyForMessage(ctx: QueryCtx, userId: Id<"users">) {
+  const last = await ctx.db.query("coachMessages").withIndex("by_user", (q) => q.eq("userId", userId)).order("desc").first();
+  if (last?.status === "streaming") throw new ConvexError("The coach is still replying. Give it a moment.");
+  if (!(await isAdmin(ctx, userId)) && (await usedToday(ctx, userId)) >= DAILY_LIMIT)
+    throw new ConvexError(`You've used today's ${DAILY_LIMIT} coach messages. They reset at midnight.`);
+}
+
+/** A one-time link to upload a food photo for the coach (checked first, so no photo is uploaded that can't be sent). */
+export const photoUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
     const userId = await requireUser(ctx);
-    if (!coachOn()) throw new ConvexError("The AI coach isn't switched on yet.");
-    if (!(await settingsOf(ctx, userId))?.coachConsentAt) throw new ConvexError("Please agree to share your logs with the coach first.");
-    if (!(await getProfile(ctx, userId))) throw new ConvexError("Finish setting up your profile first.");
-    const clean = text.trim();
+    await canUseCoach(ctx, userId);
+    await readyForMessage(ctx, userId);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Ask the coach something, optionally with a food photo. The reply streams into a new assistant message. */
+export const send = mutation({
+  args: { text: v.string(), imageId: v.optional(v.id("_storage")) },
+  handler: async (ctx, { text, imageId }) => {
+    const userId = await requireUser(ctx);
+    await canUseCoach(ctx, userId);
+    if (imageId) {
+      const meta = await ctx.db.system.get(imageId);
+      // A declared type that isn't an image is refused here; the actual bytes are checked again before the model sees them.
+      const bad = !meta || (meta.contentType !== undefined && !PHOTO_TYPES.includes(meta.contentType)) || meta.size > MAX_PHOTO_BYTES;
+      if (bad) {
+        if (meta) await ctx.storage.delete(imageId);
+        throw new ConvexError("That photo couldn't be used. Try a JPG or PNG under 4 MB.");
+      }
+      // A photo belongs to one message only.
+      const taken = await ctx.db.query("coachMessages").withIndex("by_image", (q) => q.eq("imageId", imageId)).first();
+      if (taken) throw new ConvexError("That photo was already sent.");
+    }
+    const clean = text.trim() || (imageId ? PHOTO_PROMPT : "");
     if (!clean) throw new ConvexError("Type a message first.");
     checkText(clean, MAX_TEXT, "Message");
-    const last = await ctx.db.query("coachMessages").withIndex("by_user", (q) => q.eq("userId", userId)).order("desc").first();
-    if (last?.status === "streaming") throw new ConvexError("The coach is still replying. Give it a moment.");
-    if (!(await isAdmin(ctx, userId)) && (await usedToday(ctx, userId)) >= DAILY_LIMIT)
-      throw new ConvexError(`You've used today's ${DAILY_LIMIT} coach messages. They reset at midnight.`);
+    await readyForMessage(ctx, userId);
 
     const now = Date.now();
-    await ctx.db.insert("coachMessages", { userId, role: "user", text: clean, status: "done", createdAt: now });
+    await ctx.db.insert("coachMessages", { userId, role: "user", text: clean, status: "done", createdAt: now, ...(imageId ? { imageId } : {}) });
     const replyId = await ctx.db.insert("coachMessages", { userId, role: "assistant", text: "", status: "streaming", createdAt: now + 1 });
     await ctx.scheduler.runAfter(0, internal.coachAgent.respond, { userId, replyId });
   },
@@ -153,7 +192,9 @@ export const clear = mutation({
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
     for (const m of await ctx.db.query("coachMessages").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
-      if (m.status !== "streaming") await ctx.db.delete(m._id);
+      if (m.status === "streaming") continue;
+      if (m.imageId) await ctx.storage.delete(m.imageId);
+      await ctx.db.delete(m._id);
     }
   },
 });
@@ -227,8 +268,8 @@ export const context = internalQuery({
       last7Days: Object.entries(days).sort().map(([date, kcal]) => ({ date, kcal: Math.round(kcal) })),
       planNext7Days: plan.sort((a, b) => (a.date + a.meal).localeCompare(b.date + b.meal)).map((p) => ({ date: p.date, meal: p.meal, dish: recipeById(p.recipeId)?.name ?? p.recipeId })),
       prefs: settings?.planPrefs ?? null,
-      // The chat so far, oldest first, without the reply being written now.
-      history: history.filter((m) => m._id !== replyId && m.status === "done" && m.text).reverse().map((m) => ({ role: m.role, text: m.text })),
+      // The chat so far, oldest first, without the reply being written now. Only the newest photo is sent to the model.
+      history: history.filter((m) => m._id !== replyId && m.status === "done" && m.text).reverse().map((m) => ({ role: m.role, text: m.text, imageId: m.imageId ?? null })),
     };
   },
 });
@@ -257,12 +298,13 @@ export const finishReply = internalMutation({
     text: v.string(),
     status: v.union(v.literal("done"), v.literal("error")),
     actions: v.array(action),
+    analysis: v.optional(photoAnalysis),
     usage: v.object({ inputTokens: v.number(), outputTokens: v.number(), costUsd: v.number() }),
   },
-  handler: async (ctx, { replyId, text, status, actions, usage }) => {
+  handler: async (ctx, { replyId, text, status, actions, analysis, usage }) => {
     const m = await ctx.db.get(replyId);
     if (!m) return;
-    await ctx.db.patch(replyId, { text, status, actions: actions.length ? (actions as Action[]) : undefined });
+    await ctx.db.patch(replyId, { text, status, actions: actions.length ? (actions as Action[]) : undefined, ...(analysis ? { analysis } : {}) });
     const day = lagosToday();
     const row = await ctx.db.query("coachDaily").withIndex("by_day", (q) => q.eq("day", day)).unique();
     const add = { replies: status === "done" ? 1 : 0, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd };

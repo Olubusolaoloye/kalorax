@@ -106,14 +106,14 @@ export const sendWelcome = internalAction({
   handler: async (_ctx, { email, role, code }) => {
     const key = process.env.AUTH_RESEND_KEY;
     if (!key) return;
-    const site = (process.env.SITE_URL ?? "https://kalorax.netlify.app").replace(/\/$/, "");
+    const site = (process.env.SITE_URL ?? "https://kalorax.app").replace(/\/$/, "");
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: process.env.AUTH_EMAIL_FROM ?? "Kalorax <no-reply@kalorax.ng>",
+          from: process.env.AUTH_EMAIL_FROM ?? "Kalorax <no-reply@kalorax.app>",
           to: [email],
           subject: "You're on the Kalorax waitlist",
           text:

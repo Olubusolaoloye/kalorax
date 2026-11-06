@@ -25,7 +25,7 @@ async function signedIn(t: ReturnType<typeof convexTest>, email: string) {
   return { userId, as: t.withIdentity({ subject: `${userId}|${sessionId}` }) };
 }
 
-beforeEach(() => vi.stubEnv("ADMIN_EMAILS", "admin@kalorax.ng"));
+beforeEach(() => vi.stubEnv("ADMIN_EMAILS", "admin@kalorax.app"));
 afterEach(() => vi.unstubAllEnvs());
 
 describe("accounts and profile", () => {
@@ -71,7 +71,7 @@ describe("verification", () => {
   it("an admin approves or rejects, and the profile follows", async () => {
     const t = convexTest(schema, modules);
     const student = await signedIn(t, "tunde@unn.edu.ng");
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await student.as.mutation(api.profile.create, { ...PROFILE, role: "student", weightKg: 72, credential: "UNN 2022/1234" });
 
     const queue = await admin.as.query(api.verification.listPending, {});
@@ -463,7 +463,7 @@ describe("client tools", () => {
   it("doesn't count demo payments as earnings, and admins record payouts up to the balance", async () => {
     const { t, d } = await paidSetup();
     expect((await d.as.query(api.clients.myPractice, {})).earnings).toMatchObject({ grossNaira: 0, activeClients: 1 });
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await expect(admin.as.mutation(api.clients.recordPayout, { dietitianId: d.userId, amountNaira: 100, reference: "TRF1" })).rejects.toThrow(/balance/);
     await expect(d.as.query(api.clients.payoutsOverview, {})).rejects.toThrow(/Admins only/);
   });
@@ -566,7 +566,7 @@ describe("admin dashboard", () => {
 
   it("counts people, activity and messages, without message text", async () => {
     const t = convexTest(schema, modules);
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     const ada = await signedIn(t, "ada@example.com");
     const bisi = await signedIn(t, "bisi@example.com");
     await signedIn(t, "half@example.com"); // never finished onboarding
@@ -602,7 +602,7 @@ describe("admin audit log", () => {
   it("records approvals, rejections and payouts with who did them, and only admins can read it", async () => {
     const t = convexTest(schema, modules);
     const student = await signedIn(t, "tunde@unn.edu.ng");
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await student.as.mutation(api.profile.create, { ...PROFILE, name: "Tunde", role: "student", weightKg: 72, credential: "UNN 2022/1234" });
     const [req] = await admin.as.query(api.verification.listPending, {});
     await admin.as.mutation(api.verification.review, { id: req._id, decision: "rejected", note: "Matric not found" });
@@ -612,8 +612,8 @@ describe("admin audit log", () => {
 
     const log = await admin.as.query(api.admin.log, {});
     expect(log.map((l) => [l.action, l.by])).toEqual([
-      ["verification_approved", "admin@kalorax.ng"],
-      ["verification_rejected", "admin@kalorax.ng"],
+      ["verification_approved", "admin@kalorax.app"],
+      ["verification_rejected", "admin@kalorax.app"],
     ]);
     expect(log[1].detail).toBe("Tunde as a student (UNN 2022/1234) · note: Matric not found");
     await expect(student.as.query(api.admin.log, {})).rejects.toThrow(/Admins only/);
@@ -623,10 +623,10 @@ describe("admin audit log", () => {
     const { t, d, enrolmentId } = await paidSetup();
     // Make the demo enrolment a real payment so the dietitian is owed money.
     await t.run((ctx) => ctx.db.patch(enrolmentId, { demoPayment: undefined }));
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await expect(admin.as.mutation(api.clients.recordPayout, { dietitianId: d.userId, amountNaira: 10_000_000, reference: "TRF0" })).rejects.toThrow(/balance/);
     await admin.as.mutation(api.clients.recordPayout, { dietitianId: d.userId, amountNaira: 1000, reference: "TRF1" });
-    expect(await admin.as.query(api.admin.log, {})).toMatchObject([{ action: "payout_recorded", detail: "₦1,000 to Dr Funke · ref TRF1", by: "admin@kalorax.ng" }]);
+    expect(await admin.as.query(api.admin.log, {})).toMatchObject([{ action: "payout_recorded", detail: "₦1,000 to Dr Funke · ref TRF1", by: "admin@kalorax.app" }]);
   });
 });
 
@@ -986,7 +986,7 @@ describe("real-user speed", () => {
 
     const member = await signedIn(t, "ada@example.com");
     await expect(member.as.query(api.vitals.summary, {})).rejects.toThrow();
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     const s = await admin.as.query(api.vitals.summary, {});
     expect(s.reports).toBe(4);
     expect(s.metrics.find((m) => m.metric === "LCP")).toMatchObject({ count: 4, p75: 2000, p75Mobile: 2000, rating: "good", goodShare: 0.75 });
@@ -1002,7 +1002,7 @@ describe("waitlist", () => {
     await expect(member.as.query(api.waitlist.list, {})).rejects.toThrow(/Admins only/);
     await expect(member.as.mutation(api.waitlist.recordExport, { count: 2 })).rejects.toThrow(/Admins only/);
 
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     const rows = await admin.as.query(api.waitlist.list, {});
     // In invite order: earliest first.
     expect(rows.map((r) => [r.email, r.role])).toEqual([["funke@clinic.ng", "dietitian"], ["ada@example.com", "member"]]);
@@ -1055,7 +1055,7 @@ describe("waitlist referrals", () => {
     await t.mutation(api.waitlist.join, { email: "friend3@example.com", role: "member", ref: code });
     expect(await t.query(api.waitlist.status, { code })).toMatchObject({ position: 1, total: 6, referrals: 3, boosted: true });
 
-    const { as: admin } = await signedIn(t, "admin@kalorax.ng");
+    const { as: admin } = await signedIn(t, "admin@kalorax.app");
     const rows = await admin.query(api.waitlist.list, {});
     expect(rows.map((r) => r.email).slice(0, 2)).toEqual(["sharer@example.com", "early@example.com"]);
     expect(rows[0]).toMatchObject({ position: 1, referrals: 3, boosted: true });
@@ -1184,7 +1184,7 @@ describe("private mode", () => {
     const member = await signedIn(t, "ada@example.com");
     await expect(member.as.mutation(api.access.setPrivateMode, { on: true })).rejects.toThrow(/Admins only/);
     await expect(member.as.mutation(api.access.createInvite, { token: token(1), label: "Me", role: "member" })).rejects.toThrow(/Admins only/);
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await admin.as.mutation(api.access.setPrivateMode, { on: true });
     expect(await t.query(api.access.status, {})).toEqual({ privateMode: true });
     await admin.as.mutation(api.access.setPrivateMode, { on: false });
@@ -1195,7 +1195,7 @@ describe("private mode", () => {
   it("needs an unused, unexpired invite link to create an account: knowing an email isn't enough", async () => {
     const t = convexTest(schema, modules);
     await signUp(t, "early@example.com"); // private mode off: anyone
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await admin.as.mutation(api.access.setPrivateMode, { on: true });
     await admin.as.mutation(api.access.createInvite, { token: token(1), label: "tester@company.ng", role: "dietitian" });
 
@@ -1221,7 +1221,7 @@ describe("private mode", () => {
     const t = convexTest(schema, modules);
     const ada = await signedIn(t, "ada@example.com");
     await ada.as.mutation(api.profile.create, { ...PROFILE, role: "consumer", weightKg: 70 });
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await admin.as.mutation(api.access.setPrivateMode, { on: true });
 
     expect(await ada.as.query(api.me.snapshot, {})).toMatchObject({ locked: true, email: "ada@example.com", profile: null, weights: [] });
@@ -1242,18 +1242,18 @@ describe("private mode", () => {
   });
 
   it("locks the admin list: a later account with an ADMIN_EMAILS address isn't an admin until a confirmed admin says so", async () => {
-    vi.stubEnv("ADMIN_EMAILS", "admin@kalorax.ng, cofounder@kalorax.ng");
+    vi.stubEnv("ADMIN_EMAILS", "admin@kalorax.app, cofounder@kalorax.app");
     const t = convexTest(schema, modules);
-    const admin = await signedIn(t, "admin@kalorax.ng");
+    const admin = await signedIn(t, "admin@kalorax.app");
     await admin.as.mutation(api.access.setPrivateMode, { on: true });
     // Someone signs up with the co-founder's address before they do (with a stolen invite link, or after private mode is off).
     await admin.as.mutation(api.access.createInvite, { token: token(5), label: "Visitor", role: "member" });
-    const impostorId = await signUp(t, "cofounder@kalorax.ng", token(5));
+    const impostorId = await signUp(t, "cofounder@kalorax.app", token(5));
     const impostor = t.withIdentity({ subject: `${impostorId}|${await t.run((ctx) => ctx.db.insert("authSessions", { userId: impostorId, expirationTime: Date.now() + 1e9 }))}` });
     await expect(impostor.query(api.waitlist.list, {})).rejects.toThrow(/Admins only/);
     expect((await impostor.query(api.me.snapshot, {}))!.isAdmin).toBe(false);
 
-    expect((await admin.as.query(api.access.overview, {})).pendingAdmins).toEqual([{ id: impostorId, email: "cofounder@kalorax.ng" }]);
+    expect((await admin.as.query(api.access.overview, {})).pendingAdmins).toEqual([{ id: impostorId, email: "cofounder@kalorax.app" }]);
     await expect(impostor.mutation(api.access.confirmAdmin, { userId: impostorId })).rejects.toThrow(/Admins only/);
     await admin.as.mutation(api.access.confirmAdmin, { userId: impostorId });
     expect((await impostor.query(api.me.snapshot, {}))!.isAdmin).toBe(true);
@@ -1334,7 +1334,7 @@ describe("AI coach", () => {
       await expect(bob.as.mutation(api.coach.applyAction, { messageId: reply.id, actionId: reply.actions[0].id })).rejects.toThrow(/Not found/);
 
       // Admins see usage and cost, not content.
-      const admin = await signedIn(t, "admin@kalorax.ng");
+      const admin = await signedIn(t, "admin@kalorax.app");
       const stats = await admin.as.query(api.coach.adminStats, {});
       expect(stats.today.replies).toBe(1);
       expect(stats.today.costUsd).toBeGreaterThan(0);
@@ -1366,6 +1366,86 @@ describe("AI coach", () => {
       });
       await expect(m.as.mutation(api.coach.send, { text: "one more" })).rejects.toThrow(/today's 15/);
       expect((await m.as.query(api.coach.thread, {}))!.remaining).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads a food photo: breakdown card, one-tap log of the whole meal, and the photo is deleted with the chat", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    const requests: Array<{ messages: Array<{ role: string; content: unknown }>; tools: Array<{ name: string }> }> = [];
+    const photoMeal = {
+      dish: "Jollof rice with chicken and plantain", confidence: "medium", meal: "Lunch",
+      items: [{ name: "Jollof rice", amount: "2 cooking spoons (140 g)", kcal: 224 }, { name: "Fried chicken", amount: "1 piece (100 g)", kcal: 260 }, { name: "Dodo", amount: "5 pieces", kcal: 173 }],
+      kcal: 657, carbs_g: 72, protein_g: 27, fat_g: 29, note: "Oil in the rice can add 100 kcal.",
+    };
+    const replies = [
+      sse([{ type: "tool_use", id: "toolu_p", name: "report_photo_meal", input: photoMeal }], "tool_use"),
+      sse([{ type: "text", text: "That looks like jollof with chicken and dodo, about 657 kcal." }], "end_turn"),
+    ];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => { requests.push(JSON.parse(init.body)); return replies.shift()!; }));
+    try {
+      const t = convexTest(schema, modules);
+      const m = await member(t);
+      await m.as.mutation(api.coach.consent, {});
+      const jpeg = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9])], { type: "image/jpeg" });
+      const imageId = await t.run((ctx) => ctx.storage.store(jpeg));
+      await m.as.mutation(api.coach.send, { text: "", imageId });
+      await expect(m.as.mutation(api.coach.send, { text: "again", imageId })).rejects.toThrow(/still replying|already sent/);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      // The model got the photo as an image, plus the photo tool.
+      const first = requests[0].messages.at(-1)!;
+      expect(first.role).toBe("user");
+      expect(first.content).toEqual([
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9)) } },
+        { type: "text", text: "What's in this meal? Give me the ingredients and calories." },
+      ]);
+      expect(requests[0].tools.map((x) => x.name)).toContain("report_photo_meal");
+
+      const th = (await m.as.query(api.coach.thread, {}))!;
+      expect(th.messages[0].imageUrl).toBeTruthy();
+      const reply = th.messages[1];
+      expect(reply.analysis).toMatchObject({ dish: "Jollof rice with chicken and plantain", kcal: 657, carbs: 72, protein: 27, fat: 29, confidence: "medium" });
+      expect(reply.analysis!.items).toHaveLength(3);
+      expect(reply.actions).toEqual([expect.objectContaining({ kind: "log_food", kcal: 657, meal: "Lunch", grams: 100 })]);
+
+      // One tap logs the whole meal, and it counts towards the day like any food.
+      await m.as.mutation(api.coach.applyAction, { messageId: reply.id, actionId: reply.actions[0].id });
+      const entry = (await m.as.query(api.me.snapshot, {}))!.diary[0];
+      const { foodById, nutrientsFor } = await import("../src/data/foods");
+      const food = foodById(entry.foodId)!;
+      expect(food.name).toBe("Jollof rice with chicken and plantain");
+      expect(Math.round(nutrientsFor(food, entry.grams).kcal)).toBe(657);
+
+      // Clearing the chat deletes the photo too.
+      await m.as.mutation(api.coach.clear, {});
+      expect(await t.run((ctx) => ctx.storage.get(imageId))).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("refuses files that aren't photos, by their actual bytes", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const t = convexTest(schema, modules);
+      const m = await member(t);
+      await m.as.mutation(api.coach.consent, {});
+      await expect(m.as.mutation(api.coach.send, { text: "" })).rejects.toThrow(/Type a message/);
+      const pdf = await t.run((ctx) => ctx.storage.store(new Blob(["%PDF-1.4 not a photo"], { type: "application/pdf" })));
+      await m.as.mutation(api.coach.send, { text: "", imageId: pdf });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(fetchMock).not.toHaveBeenCalled();
+      const th = (await m.as.query(api.coach.thread, {}))!;
+      expect(th.messages[1]).toMatchObject({ status: "error", text: expect.stringMatching(/couldn't open that photo/) });
+      expect(th.remaining).toBe(15);
     } finally {
       vi.unstubAllGlobals();
       vi.useRealTimers();

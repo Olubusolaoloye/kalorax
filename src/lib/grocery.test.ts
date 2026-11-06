@@ -24,11 +24,11 @@ describe("grocery list", () => {
     const g = grocerySnapshot(lines, 2, WEEK[0]);
     expect(g.title).toBe("Groceries · week of 19 Oct");
     expect(g.items.length).toBe(lines.length);
-    const text = groceryText(g, ["rice"], "https://kalorax.netlify.app");
+    const text = groceryText(g, ["rice"], "https://kalorax.app");
     expect(text.split("\n")[0]).toBe("🧺 Groceries · week of 19 Oct (for 2)");
     expect(text).toContain("*🌾 Grains*");
     expect(text).toMatch(/✅ Rice – [\d.]+ kg/);
     expect(text).toMatch(/▫️ Tomatoes – [\d.]+ kg/);
-    expect(text.trim().endsWith("https://kalorax.netlify.app")).toBe(true);
+    expect(text.trim().endsWith("https://kalorax.app")).toBe(true);
   });
 });

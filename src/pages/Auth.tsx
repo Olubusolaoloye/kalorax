@@ -21,7 +21,7 @@ function friendly(err: unknown, flow: Flow): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (/invite-only/i.test(msg)) return "Kalorax is invite-only for now. This invite link has been used, has expired or is missing: ask whoever invited you for a new one, or join the waitlist on the home page.";
   if (/already exists/i.test(msg)) return "An account with this email already exists. Try signing in.";
-  if (/isn't set up/i.test(msg)) return "Password reset isn't available yet. Please contact hello@kalorax.ng.";
+  if (/isn't set up/i.test(msg)) return "Password reset isn't available yet. Please contact hello@kalorax.app.";
   if (flow === "reset" && /InvalidSecret|code|expired|verif/i.test(msg)) return "That code is wrong or has expired. Check the email or ask for a new code.";
   if (/InvalidSecret|InvalidAccountId|Invalid password|could not/i.test(msg))
     return flow === "signIn" ? "That email and password don't match. Please try again." : "We couldn't create your account. Please try again.";

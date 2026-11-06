@@ -34,12 +34,12 @@ describe("shared meal plans", () => {
   });
 
   it("writes WhatsApp text by day", () => {
-    const text = planText(planSnapshot(plan, portions, WEEK), "https://kalorax.netlify.app");
+    const text = planText(planSnapshot(plan, portions, WEEK), "https://kalorax.app");
     expect(text).toContain("Week of 19 Oct");
     expect(text).toContain("*Monday*\n🍳 Breakfast: Akara with pap\n🍲 Dinner: Egusi soup with spinach & eba (1½ servings)");
     expect(text).toContain("*Wednesday*\n🍛 Lunch: Jollof rice with grilled chicken");
     expect(text).not.toContain("Tuesday");
-    expect(text.trim().endsWith("https://kalorax.netlify.app")).toBe(true);
+    expect(text.trim().endsWith("https://kalorax.app")).toBe(true);
   });
 });
 
