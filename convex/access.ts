@@ -1,11 +1,16 @@
 // Private mode: while it's on, the public sees only the waitlist, and only confirmed admins and people who
 // used a one-time invite link can create an account or use the app (enforced in requireUser and when an
-// account is created, see auth.ts). Invite links are shared by the admin (e.g. on WhatsApp); no email needed.
+// account is created, see auth.ts). Invite links are shared by the admin (copy link, WhatsApp), and an invite
+// made from the waitlist is also emailed to that address with its link (inviteFromWaitlist).
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { emailConfigured, sendEmail } from "./email";
+import { inviteEmail } from "./emails";
 import { accessConfig, adminEmails, checkText, hasAccess, isPrivateMode, logAdminAction, openInvite, requireAdmin } from "./helpers";
+import { LIMITS, tryTake } from "./rateLimit";
 
 const role = v.union(v.literal("member"), v.literal("student"), v.literal("dietitian"));
 /** An unused invite link stops working after 14 days. */
@@ -62,6 +67,94 @@ export const createInvite = mutation({
     const now = Date.now();
     await ctx.db.insert("invites", { token, label: clean, role, invitedBy: adminId, createdAt: now, expiresAt: now + INVITE_DAYS * 86_400_000 });
     await logAdminAction(ctx, adminId, "invite_added", undefined, `Invite link for ${clean} (${role})`);
+  },
+});
+
+/**
+ * Admin: invite someone from the waitlist. Makes their one-time link (or reuses the open one they already have)
+ * and emails it to them in the Kalorax design. Calling it again for someone with an open link sends the email
+ * again. The link is made either way; if email isn't set up or today's email allowance is used, the result
+ * says why so the admin can copy the link or send it on WhatsApp instead.
+ */
+export const inviteFromWaitlist = mutation({
+  args: { waitlistId: v.id("waitlist"), token: v.string() },
+  handler: async (ctx, { waitlistId, token }) => {
+    const adminId = await requireAdmin(ctx);
+    const entry = await ctx.db.get(waitlistId);
+    if (!entry) throw new ConvexError("This person is no longer on the waitlist.");
+    const email = entry.email.toLowerCase();
+    const now = Date.now();
+    let invite = (await ctx.db.query("invites").withIndex("by_email", (q) => q.eq("email", email)).collect())
+      .find((i) => !i.usedBy && i.expiresAt > now)
+      ?? (await ctx.db.query("invites").order("desc").take(1000)).find((i) => !i.usedBy && i.expiresAt > now && i.label.toLowerCase() === email);
+    if (invite) {
+      if (!invite.email) await ctx.db.patch(invite._id, { email });
+    } else {
+      if (!TOKEN.test(token)) throw new ConvexError("Invalid invite token.");
+      if (await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token)).unique()) throw new ConvexError("Please try again.");
+      const id = await ctx.db.insert("invites", { token, label: email, email, role: entry.role, invitedBy: adminId, createdAt: now, expiresAt: now + INVITE_DAYS * 86_400_000 });
+      invite = (await ctx.db.get(id))!;
+    }
+    const sent = await queueInviteEmail(ctx, invite._id, email);
+    await logAdminAction(ctx, adminId, "invite_added", undefined,
+      `Invite link for ${email} (${invite.role})${sent === "sending" ? ", emailed" : ""}`);
+    return { token: invite.token, emailed: sent === "sending", note: sent === "sending" ? null : INVITE_EMAIL_NOTE[sent] };
+  },
+});
+
+/** Schedules the invite email, within the per-person and daily limits. Returns what happened. */
+async function queueInviteEmail(ctx: MutationCtx, inviteId: Id<"invites">, email: string): Promise<"sending" | "not_set_up" | "limit_person" | "limit_day"> {
+  if (!emailConfigured()) return "not_set_up";
+  if (!(await tryTake(ctx, "inviteEmailPerAddress", email))) return "limit_person";
+  if (!(await tryTake(ctx, "inviteEmailsDaily", ""))) return "limit_day";
+  const at = Date.now();
+  await ctx.db.patch(inviteId, { emailStatus: "sending", emailedAt: at });
+  await ctx.scheduler.runAfter(0, internal.access.sendInviteEmail, { inviteId, at });
+  return "sending";
+}
+
+/** What the admin is told when an invite email couldn't go out (the link still works). */
+const INVITE_EMAIL_NOTE = {
+  not_set_up: "Email isn't set up yet, so copy the link or send it on WhatsApp.",
+  limit_person: LIMITS.inviteEmailPerAddress.message,
+  limit_day: LIMITS.inviteEmailsDaily.message,
+} as const;
+
+export const inviteForEmail = internalQuery({
+  args: { inviteId: v.id("invites") },
+  handler: async (ctx, { inviteId }) => {
+    const i = await ctx.db.get(inviteId);
+    // Removed, used or expired since: nothing to send.
+    if (!i?.email || i.usedBy || i.expiresAt <= Date.now()) return null;
+    return { email: i.email, token: i.token, role: i.role, expiresAt: i.expiresAt };
+  },
+});
+
+export const markInviteEmail = internalMutation({
+  args: { inviteId: v.id("invites"), status: v.union(v.literal("sent"), v.literal("failed")) },
+  handler: async (ctx, { inviteId, status }) => {
+    if (await ctx.db.get(inviteId)) await ctx.db.patch(inviteId, { emailStatus: status });
+  },
+});
+
+export const sendInviteEmail = internalAction({
+  args: { inviteId: v.id("invites"), at: v.number() },
+  handler: async (ctx, { inviteId, at }) => {
+    const i = await ctx.runQuery(internal.access.inviteForEmail, { inviteId });
+    if (!i) return;
+    const days = Math.max(1, Math.round((i.expiresAt - Date.now()) / 86_400_000));
+    try {
+      await sendEmail({
+        to: i.email,
+        subject: "Your Kalorax invite is here 🎉",
+        content: inviteEmail(i.role, i.token, days),
+        // One per send the admin asks for (a resend is a new email; a retry of the same one isn't).
+        idempotencyKey: `invite/${inviteId}/${at}`,
+      });
+      await ctx.runMutation(internal.access.markInviteEmail, { inviteId, status: "sent" });
+    } catch {
+      await ctx.runMutation(internal.access.markInviteEmail, { inviteId, status: "failed" });
+    }
   },
 });
 
@@ -122,6 +215,7 @@ export const overview = query({
           createdAt: new Date(i.createdAt).toISOString(),
           status: i.usedBy ? ("used" as const) : i.expiresAt <= now ? ("expired" as const) : ("open" as const),
           usedByEmail: user?.email ?? null,
+          emailStatus: i.emailStatus ?? null,
           // The link is shown only while it can still be used.
           token: !i.usedBy && i.expiresAt > now ? i.token : null,
         };

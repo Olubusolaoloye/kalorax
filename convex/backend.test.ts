@@ -1680,3 +1680,65 @@ describe("AI coach", () => {
     expect(await t.run((ctx) => ctx.db.query("coachMessages").collect())).toEqual([]);
   });
 });
+
+describe("waitlist invite emails", () => {
+  const tok = (n: number) => String(n).padStart(43, "x");
+  const signUp = async (t: ReturnType<typeof convexTest>, email: string, inviteToken: string) => {
+    const { createOrUpdateUser } = await import("./auth");
+    return t.run((ctx) => createOrUpdateUser(ctx, { existingUserId: null, profile: { email, inviteToken } }));
+  };
+
+  it("emails a waitlist person their own one-time link; Email again resends the same link; the link creates the account", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    const sent: Array<{ to: string[]; subject: string; text: string; html: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ id: `e${sent.length}` }), { status: 200 });
+    }));
+    try {
+      const t = convexTest(schema, modules);
+      await t.mutation(api.waitlist.join, { email: "Funke@Clinic.ng", role: "dietitian" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      sent.length = 0;
+      const admin = await signedIn(t, "admin@kalorax.app");
+      const member = await signedIn(t, "ada@example.com");
+      const [row] = await admin.as.query(api.waitlist.list, {});
+      await expect(member.as.mutation(api.access.inviteFromWaitlist, { waitlistId: row.id, token: tok(1) })).rejects.toThrow(/Admins only/);
+
+      expect(await admin.as.mutation(api.access.inviteFromWaitlist, { waitlistId: row.id, token: tok(1) })).toEqual({ token: tok(1), emailed: true, note: null });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ to: ["funke@clinic.ng"], subject: "Your Kalorax invite is here 🎉" });
+      expect(sent[0].html).toContain(`href="https://kalorax.app/join/${tok(1)}"`);
+      expect(sent[0].text).toMatch(/get verified/);
+      expect((await admin.as.query(api.access.overview, {})).invites).toEqual([
+        expect.objectContaining({ label: "funke@clinic.ng", role: "dietitian", status: "open", emailStatus: "sent", token: tok(1) }),
+      ]);
+      expect((await admin.as.query(api.admin.log, {}))[0]).toMatchObject({ action: "invite_added", detail: "Invite link for funke@clinic.ng (dietitian), emailed" });
+
+      // Again: same link, a new email. Then the per-person cap (3 a day) stops it, but the link still works.
+      expect((await admin.as.mutation(api.access.inviteFromWaitlist, { waitlistId: row.id, token: tok(2) })).token).toBe(tok(1));
+      await admin.as.mutation(api.access.inviteFromWaitlist, { waitlistId: row.id, token: tok(3) });
+      expect(await admin.as.mutation(api.access.inviteFromWaitlist, { waitlistId: row.id, token: tok(4) })).toMatchObject({ token: tok(1), emailed: false, note: expect.stringMatching(/3 invite emails/) });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(3);
+      expect((await admin.as.query(api.access.overview, {})).invites).toHaveLength(1);
+
+      await admin.as.mutation(api.access.setPrivateMode, { on: true });
+      await signUp(t, "funke@clinic.ng", tok(1));
+      expect((await admin.as.query(api.access.overview, {})).invites[0]).toMatchObject({ status: "used", token: null });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("still makes the link when email isn't set up, and says so", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" });
+    const admin = await signedIn(t, "admin@kalorax.app");
+    const [row] = await admin.as.query(api.waitlist.list, {});
+    expect(await admin.as.mutation(api.access.inviteFromWaitlist, { waitlistId: row.id, token: tok(5) })).toEqual({ token: tok(5), emailed: false, note: expect.stringMatching(/isn't set up/) });
+  });
+});

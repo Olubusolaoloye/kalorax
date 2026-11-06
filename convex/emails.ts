@@ -73,3 +73,26 @@ export function betaWelcomeEmail(name: string): EmailContent {
     reason: "You're getting this because you have a Kalorax account. You can turn off beta emails on the Me page.",
   };
 }
+
+const INVITE: Record<"member" | "student" | "dietitian", string> = {
+  member: "Log your meals (snap a photo and the coach does the counting), track water and workouts, and take on weekly challenges with friends.",
+  student: "Create your account, then get your student account verified to unlock the Workbench.",
+  dietitian: "Create your account, then get verified so you can start offering programmes to clients.",
+};
+
+/** The waitlist invite: their own one-time link to create an account. */
+export function inviteEmail(role: keyof typeof INVITE, token: string, daysLeft: number): EmailContent {
+  const link = `${siteUrl()}/join/${token}`;
+  return {
+    preheader: "Your spot has come up. Create your account with your personal link.",
+    heading: "Your Kalorax invite is here 🎉",
+    blocks: [
+      { p: "Good news: your spot on the waitlist has come up, and you're invited to try Kalorax early." },
+      { button: { label: "Create my account", url: link } },
+      { p: INVITE[role] },
+      { small: `This link is just for you and works once. It expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}, so please don't share it.` },
+      { small: `Or copy it: ${link}` },
+    ],
+    reason: "You're getting this because you joined the Kalorax waitlist.",
+  };
+}

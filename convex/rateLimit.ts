@@ -29,6 +29,8 @@ export const LIMITS = {
   // part of it, so reset and sign-up codes keep working (WELCOME_EMAILS_PER_DAY raises it on a paid plan).
   welcomeEmailsDaily: { max: 40, windowMs: DAY, message: "" },
   broadcastEmailsDaily: { max: 40, windowMs: DAY, message: "" },
+  inviteEmailsDaily: { max: 40, windowMs: DAY, message: "Today's invite emails are used up (they share the daily email quota). The link is ready: copy it or send it on WhatsApp, or email it tomorrow." },
+  inviteEmailPerAddress: { max: 3, windowMs: DAY, message: "This person has had 3 invite emails today. Copy the link or send it on WhatsApp instead." },
   feedbackPerUser: { max: 10, windowMs: DAY, message: "Thanks! You've sent a lot of feedback today. Please try again tomorrow." },
   whatsappCodePerPhone: { max: 3, windowMs: DAY, message: "Too many codes to this number today. Please try again tomorrow." },
   whatsappCodeGlobal: { max: 300, windowMs: HOUR, message: "WhatsApp codes are busy. Please try again in a few minutes." },

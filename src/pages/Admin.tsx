@@ -3,6 +3,7 @@ import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { PageHeader, SearchBox, SkeletonLines, Switch } from "../components/ui";
 import { fmt } from "../state/derived";
 import { Payouts, VerificationQueue } from "./AdminReview";
@@ -432,6 +433,14 @@ function ShareInvite({ token }: { token: string }) {
   );
 }
 
+/** Whether the invite email went out (shown next to the link on the waitlist). */
+function InviteEmailStatus({ status }: { status: "sending" | "sent" | "failed" | null }) {
+  if (status === "sent") return <span className="badge badge-ok"><Check size={13} aria-hidden /> Emailed</span>;
+  if (status === "sending") return <span className="badge">Sending…</span>;
+  if (status === "failed") return <span className="pill pill-warn" title="The email didn't go out. Try again, or copy the link.">Email failed</span>;
+  return null;
+}
+
 const INVITE_STATUS = { open: "Not used yet", used: "Used", expired: "Expired" } as const;
 
 /** Private mode switch, one-time invite links, and admin accounts waiting for confirmation. */
@@ -559,13 +568,21 @@ function Waitlist() {
   const rows = useQuery(api.waitlist.list);
   const access = useQuery(api.access.overview);
   const recordExport = useMutation(api.waitlist.recordExport);
-  const createInvite = useMutation(api.access.createInvite);
+  const inviteFromWaitlist = useMutation(api.access.inviteFromWaitlist);
   const invites = new Map((access?.invites ?? []).filter((i) => i.status !== "expired").map((i) => [i.label.toLowerCase(), i]));
-  const [made, setMade] = useState<Record<string, string>>({});
-  const inviteFromWaitlist = async (email: string, role: keyof typeof WAITLIST_ROLE) => {
-    const token = newInviteToken();
-    await createInvite({ token, label: email, role });
-    setMade((m) => ({ ...m, [email]: token }));
+  const [made, setMade] = useState<Record<string, { token: string; note: string | null }>>({});
+  const [sending, setSending] = useState<string | null>(null);
+  /** Makes their one-time link (or reuses the open one) and emails it to them. */
+  const invite = async (id: Id<"waitlist">, email: string) => {
+    setSending(email);
+    try {
+      const r = await inviteFromWaitlist({ waitlistId: id, token: newInviteToken() });
+      setMade((m) => ({ ...m, [email]: { token: r.token, note: r.note } }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message.replace(/^.*ConvexError: /, "").split("\n")[0] : "Couldn't send the invite.");
+    } finally {
+      setSending(null);
+    }
   };
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -612,14 +629,23 @@ function Waitlist() {
                   <td className="num small">{r.referrals}</td>
                   <td className="small muted" title={new Date(r.joinedAt).toLocaleString("en-NG")}>{ago(r.joinedAt)}</td>
                   <td className="num">
-                    {made[r.email] ? (
-                      <ShareInvite token={made[r.email]} />
-                    ) : invites.get(r.email)?.status === "used" ? (
+                    {invites.get(r.email)?.status === "used" ? (
                       <span className="small muted"><Check size={14} aria-hidden /> Joined</span>
-                    ) : invites.get(r.email)?.token ? (
-                      <ShareInvite token={invites.get(r.email)!.token!} />
+                    ) : invites.get(r.email)?.token || made[r.email] ? (
+                      <span style={{ display: "inline-flex", flexDirection: "column", gap: "0.25rem", alignItems: "flex-end" }}>
+                        <span className="row" style={{ gap: "0.35rem", justifyContent: "flex-end" }}>
+                          <InviteEmailStatus status={invites.get(r.email)?.emailStatus ?? null} />
+                          <button className="btn btn-ghost btn-small" disabled={sending === r.email} onClick={() => void invite(r.id, r.email)}>
+                            <Mail size={15} /> {invites.get(r.email)?.emailStatus ? "Email again" : "Email invite"}
+                          </button>
+                        </span>
+                        <ShareInvite token={invites.get(r.email)?.token ?? made[r.email].token} />
+                        {made[r.email]?.note && <span className="small muted" role="status">{made[r.email].note}</span>}
+                      </span>
                     ) : (
-                      <button className="btn btn-ghost btn-small" onClick={() => void inviteFromWaitlist(r.email, r.role)}><UserPlus size={15} /> Invite</button>
+                      <button className="btn btn-ghost btn-small" disabled={sending === r.email} onClick={() => void invite(r.id, r.email)}>
+                        <UserPlus size={15} /> {sending === r.email ? "Inviting…" : "Invite"}
+                      </button>
                     )}
                   </td>
                 </tr>

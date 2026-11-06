@@ -40,7 +40,7 @@ export const siteUrl = () => (process.env.SITE_URL ?? "https://kalorax.app").rep
 
 function blockHtml(b: Block): string {
   if ("p" in b) return `<p style="margin:0 0 16px;font:400 16px/1.6 ${FONT};color:${C.text};white-space:pre-line">${esc(b.p)}</p>`;
-  if ("small" in b) return `<p style="margin:0 0 16px;font:400 14px/1.6 ${FONT};color:${C.muted}">${esc(b.small)}</p>`;
+  if ("small" in b) return `<p style="margin:0 0 16px;font:400 14px/1.6 ${FONT};color:${C.muted};overflow-wrap:anywhere;word-break:break-word">${esc(b.small)}</p>`;
   if ("list" in b) {
     const items = b.list
       .map((i) => `<tr><td valign="top" style="padding:0 10px 10px 0;font:700 16px/1.6 ${FONT};color:${C.brand}">&#10003;</td><td style="padding:0 0 10px;font:400 16px/1.6 ${FONT};color:${C.text}">${esc(i)}</td></tr>`)
