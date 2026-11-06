@@ -12,6 +12,7 @@ import type * as access from "../access.js";
 import type * as admin from "../admin.js";
 import type * as alerts from "../alerts.js";
 import type * as auth from "../auth.js";
+import type * as beta from "../beta.js";
 import type * as challenges from "../challenges.js";
 import type * as clients from "../clients.js";
 import type * as coach from "../coach.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   alerts: typeof alerts;
   auth: typeof auth;
+  beta: typeof beta;
   challenges: typeof challenges;
   clients: typeof clients;
   coach: typeof coach;

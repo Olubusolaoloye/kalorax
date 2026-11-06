@@ -3,7 +3,11 @@ import { Link } from "react-router-dom";
 import { AccountCard, CloudDeleteCard, ImportCard, VerificationCard } from "../components/CloudPanels";
 import { UsernameCard } from "../components/Social";
 import { Avatar, NAV_ENTRIES } from "../components/Layout";
-import { Card, Disclaimer, Locked } from "../components/ui";
+import { useMutation, useQuery } from "convex/react";
+import { useState, type FormEvent } from "react";
+import { api } from "../../convex/_generated/api";
+import { Card, Disclaimer, Locked, Switch } from "../components/ui";
+import { errorText } from "../lib/errors";
 import { regionById, REGIONS } from "../data/regions";
 import { planCuisinesFor } from "../lib/planner";
 import { CONDITION_LABEL, PAL } from "../lib/nutrition";
@@ -62,6 +66,7 @@ export function Me() {
       </Card>
 
       <RegionCard />
+      {cloud && <FeedbackCard />}
 
       {cloud && isPro && <VerificationCard />}
       {cloud && account?.isAdmin && (
@@ -140,6 +145,46 @@ function RegionCard() {
         </select>
       </label>
       <p className="small muted" style={{ marginBottom: 0 }}>Your food list, recipes and new meal plans start with dishes from here. Travelling or moved? Change it and everything follows. You can still search every cuisine.</p>
+    </Card>
+  );
+}
+
+/** Beta testing: send feedback to the team (only admins read it), and choose whether to get beta emails. */
+function FeedbackCard() {
+  const send = useMutation(api.beta.sendFeedback);
+  const prefs = useQuery(api.beta.myBetaEmails);
+  const setBetaEmails = useMutation(api.beta.setBetaEmails);
+  const [text, setText] = useState("");
+  const [state, setState] = useState<"idle" | "busy" | "sent">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setState("busy");
+    setError(null);
+    try {
+      await send({ text });
+      setText("");
+      setState("sent");
+    } catch (err) {
+      setError(errorText(err));
+      setState("idle");
+    }
+  };
+  return (
+    <Card title="Send feedback">
+      <form onSubmit={submit} className="feedback-form">
+        <label className="sr-only" htmlFor="feedback-text">Your feedback</label>
+        <textarea id="feedback-text" rows={3} maxLength={2000} value={text} onChange={(e) => { setText(e.target.value); if (state === "sent") setState("idle"); }} placeholder="Found a bug or have an idea? Tell the Kalorax team." />
+        <button className="btn btn-primary btn-small" disabled={state === "busy" || text.trim().length < 3}>{state === "busy" ? "Sending…" : "Send feedback"}</button>
+      </form>
+      {state === "sent" && <p className="small" role="status">Thank you! The team will read it.</p>}
+      {error && <p className="small error" role="alert">{error}</p>}
+      {prefs && (
+        <div className="row" style={{ justifyContent: "space-between", marginTop: "0.75rem" }}>
+          <span className="small">Email me beta updates</span>
+          <Switch checked={prefs.on} onChange={(on) => void setBetaEmails({ on })} label="Email me beta updates" />
+        </div>
+      )}
     </Card>
   );
 }

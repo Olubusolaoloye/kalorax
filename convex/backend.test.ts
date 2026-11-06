@@ -1241,6 +1241,72 @@ describe("email (Resend)", () => {
   });
 });
 
+describe("beta testers", () => {
+  async function member(t: ReturnType<typeof convexTest>, email: string, name: string) {
+    const m = await signedIn(t, email);
+    await m.as.mutation(api.profile.create, { ...PROFILE, name, role: "consumer", weightKg: 70 });
+    return m;
+  }
+
+  it("emails every account once, skips anyone who opted out, and stops at the day's allowance", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    vi.stubEnv("BETA_EMAILS_PER_DAY", "2");
+    const sent: Array<{ to: string[]; subject: string; text: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ id: `email_${sent.length}` }), { status: 200 });
+    }));
+    try {
+      const t = convexTest(schema, modules);
+      const ada = await member(t, "ada@example.com", "Ada Obi");
+      await member(t, "bisi@example.com", "Bisi");
+      const chidi = await member(t, "chidi@example.com", "Chidi");
+      await chidi.as.mutation(api.beta.setBetaEmails, { on: false });
+      expect(await chidi.as.query(api.beta.myBetaEmails, {})).toEqual({ on: false });
+      const admin = await signedIn(t, "admin@kalorax.app");
+      await expect(ada.as.mutation(api.beta.startBetaWelcome, {})).rejects.toThrow(/Admins only/);
+
+      // admin@ has an account too (no profile): 3 to send (Ada, Bisi, admin), Chidi opted out.
+      expect(await admin.as.query(api.beta.betaWelcomeStatus, {})).toMatchObject({ left: 3, sent: 0, sending: false });
+      expect(await admin.as.mutation(api.beta.startBetaWelcome, {})).toBe("started");
+      expect(await admin.as.mutation(api.beta.startBetaWelcome, {})).toBe("already_sending");
+      vi.advanceTimersByTime(10);
+      await t.finishInProgressScheduledFunctions();
+      // Only 2 today; the rest waits for tomorrow.
+      expect(sent).toHaveLength(2);
+      expect(await admin.as.query(api.beta.betaWelcomeStatus, {})).toMatchObject({ sent: 2, left: 1, sending: true });
+      const toAda = sent.find((m) => m.to[0] === "ada@example.com");
+      if (toAda) expect(toAda.text).toMatch(/^Hi Ada,/);
+      expect(sent[0].subject).toBe("Welcome to the Kalorax beta 💚");
+      expect(sent.every((m) => !m.to.includes("chidi@example.com"))).toBe(true);
+
+      // Next day: the last one, then it stops. Nobody gets it twice.
+      vi.advanceTimersByTime(25 * 3_600_000);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(3);
+      expect(new Set(sent.map((m) => m.to[0])).size).toBe(3);
+      expect(await admin.as.query(api.beta.betaWelcomeStatus, {})).toMatchObject({ sent: 3, left: 0, sending: false });
+      expect((await admin.as.query(api.admin.log, {}))[0]).toMatchObject({ action: "beta_email_started" });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("takes feedback from members, readable by admins only", async () => {
+    const t = convexTest(schema, modules);
+    const ada = await member(t, "ada@example.com", "Ada");
+    await expect(ada.as.mutation(api.beta.sendFeedback, { text: " " })).rejects.toThrow(/few words/);
+    await ada.as.mutation(api.beta.sendFeedback, { text: "The coach photo button is great!" });
+    await expect(ada.as.query(api.beta.feedbackList, {})).rejects.toThrow(/Admins only/);
+    const admin = await signedIn(t, "admin@kalorax.app");
+    expect(await admin.as.query(api.beta.feedbackList, {})).toMatchObject([{ text: "The coach photo button is great!", name: "Ada", email: "ada@example.com" }]);
+    await ada.as.mutation(api.data.deleteMyData, {});
+    expect(await admin.as.query(api.beta.feedbackList, {})).toEqual([]);
+  });
+});
+
 describe("launch protections", () => {
   async function member(t: ReturnType<typeof convexTest>, email = "ada@example.com") {
     const m = await signedIn(t, email);

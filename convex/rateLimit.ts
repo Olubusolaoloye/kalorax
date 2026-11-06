@@ -28,6 +28,8 @@ export const LIMITS = {
   // Resend's free plan sends 100 emails a day (UTC), shared by codes and welcome emails. Welcome emails get only
   // part of it, so reset and sign-up codes keep working (WELCOME_EMAILS_PER_DAY raises it on a paid plan).
   welcomeEmailsDaily: { max: 40, windowMs: DAY, message: "" },
+  broadcastEmailsDaily: { max: 40, windowMs: DAY, message: "" },
+  feedbackPerUser: { max: 10, windowMs: DAY, message: "Thanks! You've sent a lot of feedback today. Please try again tomorrow." },
   whatsappCodePerPhone: { max: 3, windowMs: DAY, message: "Too many codes to this number today. Please try again tomorrow." },
   whatsappCodeGlobal: { max: 300, windowMs: HOUR, message: "WhatsApp codes are busy. Please try again in a few minutes." },
   // Public, no sign-in: caps for everyone together.

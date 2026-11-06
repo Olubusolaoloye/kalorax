@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck, CircleX, Copy, Download, Gauge, HeartPulse, Lock, LockOpen, MessageCircle, NotebookPen, ShieldAlert, ShieldCheck, Sparkles, UserMinus, UserPlus, Users } from "lucide-react";
+import { Activity, BadgeCheck, Banknote, Bell, CalendarRange, Check, CircleCheck, CircleX, Copy, Download, Gauge, HeartPulse, Lock, LockOpen, Mail, MessageCircle, NotebookPen, Send, ShieldAlert, ShieldCheck, Sparkles, UserMinus, UserPlus, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
@@ -129,12 +129,60 @@ function Overview({ o, onTab }: { o: OverviewData; onTab: (t: Tab) => void }) {
           <Stat label="Reminders sent this week" value={o.reminders.sentThisWeek} />
         </Panel>
       </div>
+      <BetaPanel />
       <CoachPanel />
       <SpeedPanel />
       <p className="sample-notice">
         Admins see counts and activity, not message text or anyone's food log. Days are in Nigeria time. Figures update live.
       </p>
     </>
+  );
+}
+
+/** Beta testing: the one-off welcome email to every account, and what testers send from Me → Send feedback. */
+function BetaPanel() {
+  const status = useQuery(api.beta.betaWelcomeStatus);
+  const feedback = useQuery(api.beta.feedbackList);
+  const start = useMutation(api.beta.startBetaWelcome);
+  const [confirming, setConfirming] = useState(false);
+  if (status === undefined) return null;
+  const days = status.perDay > 0 ? Math.ceil(status.left / status.perDay) : 0;
+  return (
+    <section className="card admin-panel">
+      <h2 className="row"><Mail size={17} /> Beta testers</h2>
+      <dl>
+        <Stat label="Accounts with an email" value={status.accounts} />
+        <Stat label="Beta welcome sent" value={status.sent} />
+        <Stat label="Still to send" value={status.left} />
+        {status.failed > 0 && <Stat label="Couldn't be delivered" value={status.failed} warn />}
+      </dl>
+      {status.sending ? (
+        <p className="small"><Send size={14} aria-hidden /> Sending now, {status.perDay} a day so Resend's free daily allowance covers it{days > 1 ? ` (about ${days} days to finish)` : ""}. It carries on by itself.</p>
+      ) : status.left === 0 ? (
+        <p className="small muted">{status.sent ? "Everyone with an account has had the beta welcome email." : "No accounts to email yet."}</p>
+      ) : confirming ? (
+        <div className="row">
+          <span className="small">Send "Welcome to the Kalorax beta" to {status.left} account{status.left === 1 ? "" : "s"}? Each account gets it once.</span>
+          <button className="btn btn-primary btn-small" onClick={() => void start().then(() => setConfirming(false))}><Send size={15} /> Yes, send</button>
+          <button className="btn btn-ghost btn-small" onClick={() => setConfirming(false)}>Cancel</button>
+        </div>
+      ) : (
+        <button className="btn btn-primary" onClick={() => setConfirming(true)}><Send size={16} /> Send the beta welcome email</button>
+      )}
+      <h3 style={{ marginTop: "1.25rem" }}>Feedback</h3>
+      {feedback === undefined ? <SkeletonLines rows={2} /> : feedback.length === 0 ? (
+        <p className="small muted">Nothing yet. Testers send feedback from Me → Send feedback.</p>
+      ) : (
+        <ul className="feedback-list">
+          {feedback.map((f) => (
+            <li key={f.id}>
+              <p>{f.text}</p>
+              <span className="small muted">{f.name ?? "Member"}{f.email ? ` · ${f.email}` : ""} · {new Date(f.at).toLocaleString("en-NG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -358,6 +406,7 @@ const LOG_LABEL = {
   invite_added: { text: "Invited", icon: <UserPlus size={16} /> },
   invite_removed: { text: "Invite removed", icon: <UserMinus size={16} /> },
   admin_confirmed: { text: "Admin confirmed", icon: <ShieldCheck size={16} /> },
+  beta_email_started: { text: "Beta email", icon: <Mail size={16} /> },
 } as const;
 
 /** A new invite token: 32 random bytes from the browser's crypto, URL-safe (43 characters). */
