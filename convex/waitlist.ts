@@ -5,6 +5,7 @@ import { internalAction, mutation, query, type MutationCtx, type QueryCtx } from
 import { logAdminAction, requireAdmin } from "./helpers";
 import { take, tryTake } from "./rateLimit";
 import { emailConfigured, sendEmail } from "./email";
+import { waitlistWelcomeEmail } from "./emails";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const role = v.union(v.literal("member"), v.literal("student"), v.literal("dietitian"));
@@ -158,27 +159,16 @@ export const status = query({
   },
 });
 
-const WELCOME: Record<"member" | "student" | "dietitian", string> = {
-  member: "We'll email you when Kalorax opens to everyone, with a few tips to get your first week off to a good start.",
-  student: "We'll email you when Kalorax opens, including how to get your student account verified so you can use the Workbench.",
-  dietitian: "We'll email you when Kalorax opens, including how to get verified and start offering paid programmes to clients.",
-};
-
 /** "You're on the list" email, with the confirm link and their share link (Resend; see email.ts). */
 export const sendWelcome = internalAction({
   args: { email: v.string(), role, code: v.string(), confirmToken: v.string() },
   handler: async (_ctx, { email, role, code, confirmToken }) => {
     if (!emailConfigured()) return;
-    const site = (process.env.SITE_URL ?? "https://kalorax.app").replace(/\/$/, "");
     try {
       await sendEmail({
         to: email,
         subject: "Confirm your place on the Kalorax waitlist",
-        text:
-          `Thanks for joining the Kalorax waitlist!\n\nPlease confirm your email so we can send your invite:\n${site}/?confirm=${confirmToken}\n\n` +
-          `${WELCOME[role]}\n\n` +
-          `Want an earlier invite? Share your link. When ${REFERRAL_GOAL} friends join and confirm, you move into the first group:\n${site}/?ref=${code}\n\n` +
-          `If you didn't sign up, you can ignore this email and we won't write again.\n\n— The Kalorax team`,
+        content: waitlistWelcomeEmail(role, confirmToken, code, REFERRAL_GOAL),
         // One welcome per address.
         idempotencyKey: `welcome/${email}`,
       });

@@ -1223,14 +1223,17 @@ describe("email (Resend)", () => {
     const calls: Array<Record<string, string>> = [];
     vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { headers: Record<string, string> }) => { calls.push(init.headers); return replies.shift()!; }));
     try {
-      const sending = sendEmail({ to: "a@example.com", subject: "Hi", text: "Hello", idempotencyKey: "test/1" });
+      const sending = sendEmail({ to: "a@example.com", subject: "Hi", content: { preheader: "", heading: "Hello", blocks: [], reason: "" }, idempotencyKey: "test/1" });
       await vi.runAllTimersAsync();
       expect(await sending).toBe("email_ok");
       expect(calls).toHaveLength(3);
       expect(calls.every((h) => h["Idempotency-Key"] === "test/1")).toBe(true);
+      const sentBody = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as { body: string }).body);
+      expect(sentBody.html).toContain("kalorax-logo.png");
+      expect(sentBody.text).toContain("Hello");
 
       vi.stubGlobal("fetch", vi.fn(async () => new Response("bad", { status: 422 })));
-      const bad = sendEmail({ to: "a@example.com", subject: "Hi", text: "Hello", idempotencyKey: "test/2" }).catch((e: Error) => e.message);
+      const bad = sendEmail({ to: "a@example.com", subject: "Hi", content: { preheader: "", heading: "Hello", blocks: [], reason: "" }, idempotencyKey: "test/2" }).catch((e: Error) => e.message);
       await vi.runAllTimersAsync();
       expect(await bad).toMatch(/422/);
       expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
@@ -1277,7 +1280,7 @@ describe("beta testers", () => {
       expect(sent).toHaveLength(2);
       expect(await admin.as.query(api.beta.betaWelcomeStatus, {})).toMatchObject({ sent: 2, left: 1, sending: true });
       const toAda = sent.find((m) => m.to[0] === "ada@example.com");
-      if (toAda) expect(toAda.text).toMatch(/^Hi Ada,/);
+      if (toAda) expect(toAda.text).toMatch(/^Welcome to the beta, Ada/);
       expect(sent[0].subject).toBe("Welcome to the Kalorax beta 💚");
       expect(sent.every((m) => !m.to.includes("chidi@example.com"))).toBe(true);
 

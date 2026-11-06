@@ -1,5 +1,8 @@
 // Sending email through Resend (https://resend.com). One place for the sender, retries and idempotency.
+// Every email uses the branded layout in emailLayout.ts (HTML plus a plain-text version).
 // Needs AUTH_RESEND_KEY (a sending-only key for mail.kalorax.app) and AUTH_EMAIL_FROM; AUTH_EMAIL_REPLY_TO is optional.
+
+import { renderEmail, type EmailContent } from "./emailLayout";
 
 export const DEFAULT_FROM = "Kalorax <hello@mail.kalorax.app>";
 const RESEND = "https://api.resend.com/emails";
@@ -14,12 +17,13 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * so use one per attempt the person makes (e.g. per reset code), not per address. Retries network errors,
  * 5xx and 429 (respecting Retry-After) with backoff; other 4xx errors aren't retried. Returns Resend's email id.
  */
-export async function sendEmail(m: { to: string; subject: string; text: string; idempotencyKey: string }): Promise<string> {
+export async function sendEmail(m: { to: string; subject: string; content: EmailContent; idempotencyKey: string }): Promise<string> {
   const key = process.env.AUTH_RESEND_KEY;
   if (!key) throw new Error("Email isn't set up yet.");
   // The sending domain doesn't receive mail, so replies go to AUTH_EMAIL_REPLY_TO (a real inbox) when it's set.
   const replyTo = process.env.AUTH_EMAIL_REPLY_TO;
-  const body = JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM, to: [m.to], subject: m.subject, text: m.text, ...(replyTo ? { reply_to: replyTo } : {}) });
+  const { html, text } = renderEmail(m.content);
+  const body = JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM, to: [m.to], subject: m.subject, html, text, ...(replyTo ? { reply_to: replyTo } : {}) });
   let last = "";
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     let res: Response;
