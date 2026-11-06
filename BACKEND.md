@@ -76,14 +76,20 @@ Create an account with the email you put in `ADMIN_EMAILS`, and the **Verificati
 4. Redeploy. The build (`npm run build:ci`) deploys the Convex functions, sets `VITE_CONVEX_URL` automatically, and builds the app in cloud mode.
    Only production builds deploy to Convex. Deploy previews and branch deploys do a plain build (Convex refuses a production key there); set `VITE_CONVEX_URL` for those contexts in Netlify if you want previews connected to Convex.
 
-## Password reset emails (Resend)
+## Email (Resend)
 
-1. Create a free account at https://resend.com, verify your sending domain (e.g. `kalorax.app`) and create an API key.
-2. `npx convex env set AUTH_RESEND_KEY re_xxx` and `npx convex env set AUTH_EMAIL_FROM "Kalorax <no-reply@kalorax.app>"` (add `--prod` for production).
+Kalorax sends from **`mail.kalorax.app`** (a subdomain, so the main domain's reputation is protected), region `eu-west-1`, with open and click tracking off. All email goes through `convex/email.ts`: an idempotency key per attempt (a retry never sends twice) and retries with backoff for network errors, 5xx and 429.
 
-The same key and sender also send the waitlist welcome email.
+Convex environment (production):
+- `AUTH_RESEND_KEY`: a **sending-only** key restricted to `mail.kalorax.app` ("Kalorax app (sending only)" in Resend). Never give the app a full-access key.
+- `AUTH_EMAIL_FROM`: `Kalorax <hello@mail.kalorax.app>`
+- `AUTH_EMAIL_REPLY_TO` (optional): a real inbox for replies, since `mail.kalorax.app` doesn't receive mail.
+- `REQUIRE_EMAIL_VERIFICATION=true`: new accounts confirm their email with an 8-digit code, and existing unconfirmed accounts do so at their next sign-in. **Only turn this on once the domain shows Verified in Resend**, or nobody can sign up or sign in.
+- `WELCOME_EMAILS_PER_DAY` (optional, default 40): Resend's free plan sends 100 emails a day, so waitlist welcomes get only part of it and reset and sign-up codes keep working. Raise it on a paid plan.
 
-Without these, "Forgot password?" tells people reset isn't available yet.
+What's sent: password-reset codes, sign-up confirmation codes (when switched on), and the waitlist welcome email with a confirm link. A waitlist referral counts only once the friend confirms their email.
+
+DNS for `mail.kalorax.app` (in kalorax.app's DNS): the DKIM `TXT` (`resend._domainkey.mail`), the `MX` and SPF `TXT` for `send.mail`, and the `CNAME` for `rsend.mail`, exactly as shown under Domains in Resend. Add `_dmarc` `TXT` `v=DMARC1; p=none;` on kalorax.app if there's none yet.
 
 ## Reminders: push notifications
 

@@ -1024,13 +1024,14 @@ describe("waitlist", () => {
       await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
       expect(sent).toHaveLength(1);
-      expect(sent[0]).toMatchObject({ to: ["tunde@unn.edu.ng"], subject: "You're on the Kalorax waitlist" });
+      expect(sent[0]).toMatchObject({ to: ["tunde@unn.edu.ng"], subject: "Confirm your place on the Kalorax waitlist" });
+      expect(sent[0].text).toMatch(/\?confirm=[0-9a-f]{36}/);
       expect(sent[0].text).toMatch(/student account verified/);
 
-      // 60 more in the same hour: the 61st join of the hour gets no email.
+      // 60 more the same day: only the day's share of the email quota (40) gets a welcome email.
       for (let i = 0; i < 60; i++) await t.mutation(api.waitlist.join, { email: `p${i}@example.com`, role: "member" });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
-      expect(sent).toHaveLength(60);
+      expect(sent).toHaveLength(40);
     } finally {
       vi.unstubAllGlobals();
       vi.useRealTimers();
@@ -1179,6 +1180,130 @@ describe("challenges and teams", () => {
     const after = (await boardOf(b, teamId))!;
     expect(after.owner).toBe(true);
     expect(after.rows.map((r) => r.name)).toEqual(["Bisi"]);
+  });
+});
+
+describe("email (Resend)", () => {
+  it("counts a referral only once the friend confirms their email, and only once", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    const sent: Array<{ text: string; to: string[] }> = [];
+    const headers: Array<Record<string, string>> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string; headers: Record<string, string> }) => {
+      sent.push(JSON.parse(init.body));
+      headers.push(init.headers);
+      return new Response(JSON.stringify({ id: `email_${sent.length}` }), { status: 200 });
+    }));
+    try {
+      const t = convexTest(schema, modules);
+      const { code } = await t.mutation(api.waitlist.join, { email: "sharer@example.com", role: "member" });
+      await t.mutation(api.waitlist.join, { email: "friend@example.com", role: "member", ref: code });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      // Not counted yet: the friend hasn't confirmed.
+      expect(await t.query(api.waitlist.status, { code })).toMatchObject({ referrals: 0 });
+      const mail = sent.find((m) => m.to[0] === "friend@example.com")!;
+      expect(headers[1]["Idempotency-Key"]).toBe("welcome/friend@example.com");
+      const token = mail.text.match(/\?confirm=([0-9a-f]{36})/)![1];
+      expect(await t.mutation(api.waitlist.confirm, { token })).toMatchObject({ ok: true });
+      expect(await t.mutation(api.waitlist.confirm, { token })).toMatchObject({ ok: true }); // a second click changes nothing
+      expect(await t.query(api.waitlist.status, { code })).toMatchObject({ referrals: 1 });
+      expect(await t.mutation(api.waitlist.confirm, { token: "0".repeat(36) })).toEqual({ ok: false });
+      expect(await t.mutation(api.waitlist.confirm, { token: "not-a-token" })).toEqual({ ok: false });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries Resend on server errors and rate limits, but not on other errors", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    const { sendEmail } = await import("./email");
+    const replies = [new Response("busy", { status: 503 }), new Response("slow down", { status: 429, headers: { "retry-after": "1" } }), new Response(JSON.stringify({ id: "email_ok" }), { status: 200 })];
+    const calls: Array<Record<string, string>> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { headers: Record<string, string> }) => { calls.push(init.headers); return replies.shift()!; }));
+    try {
+      const sending = sendEmail({ to: "a@example.com", subject: "Hi", text: "Hello", idempotencyKey: "test/1" });
+      await vi.runAllTimersAsync();
+      expect(await sending).toBe("email_ok");
+      expect(calls).toHaveLength(3);
+      expect(calls.every((h) => h["Idempotency-Key"] === "test/1")).toBe(true);
+
+      vi.stubGlobal("fetch", vi.fn(async () => new Response("bad", { status: 422 })));
+      const bad = sendEmail({ to: "a@example.com", subject: "Hi", text: "Hello", idempotencyKey: "test/2" }).catch((e: Error) => e.message);
+      await vi.runAllTimersAsync();
+      expect(await bad).toMatch(/422/);
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("beta testers", () => {
+  async function member(t: ReturnType<typeof convexTest>, email: string, name: string) {
+    const m = await signedIn(t, email);
+    await m.as.mutation(api.profile.create, { ...PROFILE, name, role: "consumer", weightKg: 70 });
+    return m;
+  }
+
+  it("emails every account once, skips anyone who opted out, and stops at the day's allowance", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    vi.stubEnv("BETA_EMAILS_PER_DAY", "2");
+    const sent: Array<{ to: string[]; subject: string; text: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ id: `email_${sent.length}` }), { status: 200 });
+    }));
+    try {
+      const t = convexTest(schema, modules);
+      const ada = await member(t, "ada@example.com", "Ada Obi");
+      await member(t, "bisi@example.com", "Bisi");
+      const chidi = await member(t, "chidi@example.com", "Chidi");
+      await chidi.as.mutation(api.beta.setBetaEmails, { on: false });
+      expect(await chidi.as.query(api.beta.myBetaEmails, {})).toEqual({ on: false });
+      const admin = await signedIn(t, "admin@kalorax.app");
+      await expect(ada.as.mutation(api.beta.startBetaWelcome, {})).rejects.toThrow(/Admins only/);
+
+      // admin@ has an account too (no profile): 3 to send (Ada, Bisi, admin), Chidi opted out.
+      expect(await admin.as.query(api.beta.betaWelcomeStatus, {})).toMatchObject({ left: 3, sent: 0, sending: false });
+      expect(await admin.as.mutation(api.beta.startBetaWelcome, {})).toBe("started");
+      expect(await admin.as.mutation(api.beta.startBetaWelcome, {})).toBe("already_sending");
+      vi.advanceTimersByTime(10);
+      await t.finishInProgressScheduledFunctions();
+      // Only 2 today; the rest waits for tomorrow.
+      expect(sent).toHaveLength(2);
+      expect(await admin.as.query(api.beta.betaWelcomeStatus, {})).toMatchObject({ sent: 2, left: 1, sending: true });
+      const toAda = sent.find((m) => m.to[0] === "ada@example.com");
+      if (toAda) expect(toAda.text).toMatch(/^Hi Ada,/);
+      expect(sent[0].subject).toBe("Welcome to the Kalorax beta 💚");
+      expect(sent.every((m) => !m.to.includes("chidi@example.com"))).toBe(true);
+
+      // Next day: the last one, then it stops. Nobody gets it twice.
+      vi.advanceTimersByTime(25 * 3_600_000);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(sent).toHaveLength(3);
+      expect(new Set(sent.map((m) => m.to[0])).size).toBe(3);
+      expect(await admin.as.query(api.beta.betaWelcomeStatus, {})).toMatchObject({ sent: 3, left: 0, sending: false });
+      expect((await admin.as.query(api.admin.log, {}))[0]).toMatchObject({ action: "beta_email_started" });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("takes feedback from members, readable by admins only", async () => {
+    const t = convexTest(schema, modules);
+    const ada = await member(t, "ada@example.com", "Ada");
+    await expect(ada.as.mutation(api.beta.sendFeedback, { text: " " })).rejects.toThrow(/few words/);
+    await ada.as.mutation(api.beta.sendFeedback, { text: "The coach photo button is great!" });
+    await expect(ada.as.query(api.beta.feedbackList, {})).rejects.toThrow(/Admins only/);
+    const admin = await signedIn(t, "admin@kalorax.app");
+    expect(await admin.as.query(api.beta.feedbackList, {})).toMatchObject([{ text: "The coach photo button is great!", name: "Ada", email: "ada@example.com" }]);
+    await ada.as.mutation(api.data.deleteMyData, {});
+    expect(await admin.as.query(api.beta.feedbackList, {})).toEqual([]);
   });
 });
 

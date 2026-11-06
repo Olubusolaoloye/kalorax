@@ -3,12 +3,11 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { internalAction, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { logAdminAction, requireAdmin } from "./helpers";
-import { take } from "./rateLimit";
+import { take, tryTake } from "./rateLimit";
+import { emailConfigured, sendEmail } from "./email";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const role = v.union(v.literal("member"), v.literal("student"), v.literal("dietitian"));
-/** At most this many welcome emails an hour, so the form can't be used to spam people. */
-const WELCOME_PER_HOUR = 60;
 
 /** Invite 3 friends who join with your link and you move into the first invite group. */
 export const REFERRAL_GOAL = 3;
@@ -95,21 +94,56 @@ export const join = mutation({
     const counter = await waitlistCounter(ctx);
     const seq = counter.value + 1;
     await ctx.db.patch(counter._id, { value: seq });
-    await ctx.db.insert("waitlist", { email: clean, role, createdAt: Date.now(), code, seq, ...(referrer ? { referredBy: referrer._id } : {}) });
-    if (referrer) {
-      const referrals = (referrer.referrals ?? 0) + 1;
-      await ctx.db.patch(referrer._id, { referrals, ...(referrals >= REFERRAL_GOAL && referrer.boostedAt === undefined ? { boostedAt: Date.now() } : {}) });
-    }
-    // One welcome email per address (the dedupe above), and a cap per hour across everyone.
+    const confirmToken = emailConfigured() ? randomToken() : undefined;
+    const id = await ctx.db.insert("waitlist", {
+      email: clean, role, createdAt: Date.now(), code, seq, ...(confirmToken ? { confirmToken } : {}), ...(referrer ? { referredBy: referrer._id } : {}),
+    });
+    // With email on, a referral counts only once the friend confirms their address (made-up emails never do).
+    // Without email there's no way to confirm, so it counts straight away.
+    if (referrer && !confirmToken) await creditReferral(ctx, id);
+    // One welcome email per address (the dedupe above), within the day's share of the email quota.
     let emailed = false;
-    if (process.env.AUTH_RESEND_KEY) {
-      const lastHour = await ctx.db.query("waitlist").withIndex("by_creation_time", (q) => q.gt("_creationTime", Date.now() - 3_600_000)).take(WELCOME_PER_HOUR + 1);
-      if (lastHour.length <= WELCOME_PER_HOUR) {
-        await ctx.scheduler.runAfter(0, internal.waitlist.sendWelcome, { email: clean, role, code });
-        emailed = true;
-      }
+    if (confirmToken && (await tryTake(ctx, "welcomeEmailsDaily", "", 1, welcomePerDay()))) {
+      await ctx.scheduler.runAfter(0, internal.waitlist.sendWelcome, { email: clean, role, code, confirmToken });
+      emailed = true;
     }
     return { alreadyJoined: false, emailed, code };
+  },
+});
+
+/** Welcome emails a day (WELCOME_EMAILS_PER_DAY, default 40), leaving the rest of Resend's quota for codes. */
+const welcomePerDay = () => {
+  const n = Number(process.env.WELCOME_EMAILS_PER_DAY);
+  return Number.isFinite(n) && n >= 0 ? n : 40;
+};
+
+function randomToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Counts this entry towards its referrer (once), moving them into the first group at the goal. */
+async function creditReferral(ctx: MutationCtx, entryId: Doc<"waitlist">["_id"]) {
+  const entry = await ctx.db.get(entryId);
+  if (!entry?.referredBy || entry.referralCredited) return;
+  const referrer = await ctx.db.get(entry.referredBy);
+  await ctx.db.patch(entry._id, { referralCredited: true });
+  if (!referrer) return;
+  const referrals = (referrer.referrals ?? 0) + 1;
+  await ctx.db.patch(referrer._id, { referrals, ...(referrals >= REFERRAL_GOAL && referrer.boostedAt === undefined ? { boostedAt: Date.now() } : {}) });
+}
+
+/** Public: the confirm link in the welcome email (/?confirm=TOKEN). Confirms the address and credits the referral. */
+export const confirm = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const t = token.trim().toLowerCase();
+    if (!/^[0-9a-f]{36}$/.test(t)) return { ok: false as const };
+    const entry = await ctx.db.query("waitlist").withIndex("by_confirm_token", (q) => q.eq("confirmToken", t)).unique();
+    if (!entry) return { ok: false as const };
+    if (!entry.confirmedAt) await ctx.db.patch(entry._id, { confirmedAt: Date.now() });
+    await creditReferral(ctx, entry._id);
+    return { ok: true as const, code: entry.code ?? null };
   },
 });
 
@@ -130,31 +164,26 @@ const WELCOME: Record<"member" | "student" | "dietitian", string> = {
   dietitian: "We'll email you when Kalorax opens, including how to get verified and start offering paid programmes to clients.",
 };
 
-/** "You're on the list" email through Resend (same key and sender as password reset). */
+/** "You're on the list" email, with the confirm link and their share link (Resend; see email.ts). */
 export const sendWelcome = internalAction({
-  args: { email: v.string(), role, code: v.string() },
-  handler: async (_ctx, { email, role, code }) => {
-    const key = process.env.AUTH_RESEND_KEY;
-    if (!key) return;
+  args: { email: v.string(), role, code: v.string(), confirmToken: v.string() },
+  handler: async (_ctx, { email, role, code, confirmToken }) => {
+    if (!emailConfigured()) return;
     const site = (process.env.SITE_URL ?? "https://kalorax.app").replace(/\/$/, "");
     try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        signal: AbortSignal.timeout(15_000),
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: process.env.AUTH_EMAIL_FROM ?? "Kalorax <no-reply@kalorax.app>",
-          to: [email],
-          subject: "You're on the Kalorax waitlist",
-          text:
-            `Thanks for joining the Kalorax waitlist!\n\n${WELCOME[role]}\n\n` +
-            `Want an earlier invite? Share your link and when ${REFERRAL_GOAL} friends join, you move into the first group: ${site}/?ref=${code}\n\n` +
-            `If you didn't sign up, you can ignore this email and we won't write again.\n\n— The Kalorax team`,
-        }),
+      await sendEmail({
+        to: email,
+        subject: "Confirm your place on the Kalorax waitlist",
+        text:
+          `Thanks for joining the Kalorax waitlist!\n\nPlease confirm your email so we can send your invite:\n${site}/?confirm=${confirmToken}\n\n` +
+          `${WELCOME[role]}\n\n` +
+          `Want an earlier invite? Share your link. When ${REFERRAL_GOAL} friends join and confirm, you move into the first group:\n${site}/?ref=${code}\n\n` +
+          `If you didn't sign up, you can ignore this email and we won't write again.\n\n— The Kalorax team`,
+        // One welcome per address.
+        idempotencyKey: `welcome/${email}`,
       });
-      if (!res.ok) console.error("waitlist welcome failed", res.status);
-    } catch (err) {
-      console.error("waitlist welcome unreachable", (err as Error).name);
+    } catch {
+      // Logged by sendEmail; the person is on the list either way.
     }
   },
 });
@@ -167,7 +196,7 @@ export const list = query({
     const rows = inviteOrder(await ctx.db.query("waitlist").take(20000));
     return rows.map((r, i) => ({
       id: r._id, email: r.email, role: r.role, joinedAt: new Date(r.createdAt).toISOString(),
-      position: i + 1, referrals: r.referrals ?? 0, boosted: r.boostedAt !== undefined,
+      position: i + 1, referrals: r.referrals ?? 0, boosted: r.boostedAt !== undefined, confirmed: r.confirmedAt !== undefined,
     }));
   },
 });

@@ -1532,3 +1532,11 @@ fieldset.field { border: 0; padding: 0; min-width: 0; }
 .bubble .photo-card .photo-items .grow { display: block; }
 .coach-action { flex-wrap: wrap; }
 .coach-action .grow { min-width: 9rem; }
+
+/* Beta feedback */
+.feedback-form { display: grid; gap: 0.5rem; }
+.feedback-form textarea { width: 100%; resize: vertical; min-height: 84px; }
+.feedback-form .btn { justify-self: start; }
+.feedback-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.feedback-list li { background: var(--surface-sunk); border-radius: 14px; padding: 0.7rem 0.85rem; }
+.feedback-list p { margin: 0 0 0.25rem; white-space: pre-wrap; overflow-wrap: anywhere; }

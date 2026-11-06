@@ -90,6 +90,8 @@ export default defineSchema({
     coachConsentAt: v.optional(v.number()),
     /** On: friends (people they chat with) see their weekly challenge points. Off unless they join. */
     leaderboard: v.optional(v.boolean()),
+    /** True when they turned off beta emails (Me page). */
+    betaEmailsOff: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
 
   /** A company, gym or club doing weekly challenges together. People join with the team's code. */
@@ -323,7 +325,7 @@ export default defineSchema({
     adminId: v.id("users"),
     action: v.union(v.literal("verification_approved"), v.literal("verification_rejected"), v.literal("payout_recorded"), v.literal("waitlist_exported"),
       v.literal("private_mode_on"), v.literal("private_mode_off"), v.literal("invite_added"), v.literal("invite_removed"),
-      v.literal("admin_confirmed")),
+      v.literal("admin_confirmed"), v.literal("beta_email_started")),
     subjectId: v.optional(v.id("users")),
     detail: v.string(),
     at: v.number(),
@@ -369,6 +371,20 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_used_by", ["usedBy"]),
 
+  /** Feedback from testers (Me → Send feedback). Only admins read it. */
+  feedback: defineTable({ userId: v.id("users"), text: v.string(), createdAt: v.number() }).index("by_created", ["createdAt"]).index("by_user", ["userId"]),
+
+  /** One row per account per one-off email (e.g. the beta welcome), so nobody gets it twice. */
+  emailLog: defineTable({
+    userId: v.id("users"),
+    kind: v.string(),
+    status: v.union(v.literal("sent"), v.literal("failed")),
+    emailId: v.optional(v.string()),
+    sentAt: v.number(),
+  })
+    .index("by_user_kind", ["userId", "kind"])
+    .index("by_kind", ["kind"]),
+
   /** Rate-limit windows (see rateLimit.ts). */
   rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() })
     .index("by_key", ["key"])
@@ -394,8 +410,14 @@ export default defineSchema({
     boostedAt: v.optional(v.number()),
     /** Join order (1, 2, 3…), so a place in line is worked out without reading the whole list. */
     seq: v.optional(v.number()),
+    /** Secret in the welcome email's confirm link. A referral only counts once the friend confirms. */
+    confirmToken: v.optional(v.string()),
+    confirmedAt: v.optional(v.number()),
+    /** Set once this entry's referrer has been credited for it (so it's never counted twice). */
+    referralCredited: v.optional(v.boolean()),
   })
     .index("by_email", ["email"])
     .index("by_code", ["code"])
-    .index("by_boosted", ["boostedAt"]),
+    .index("by_boosted", ["boostedAt"])
+    .index("by_confirm_token", ["confirmToken"]),
 });

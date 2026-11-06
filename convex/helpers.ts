@@ -90,7 +90,7 @@ export async function ownRow<T extends "diary" | "events" | "exercises">(ctx: Mu
 
 export type AdminAction =
   | "verification_approved" | "verification_rejected" | "payout_recorded" | "waitlist_exported"
-  | "private_mode_on" | "private_mode_off" | "invite_added" | "invite_removed" | "admin_confirmed";
+  | "private_mode_on" | "private_mode_off" | "invite_added" | "invite_removed" | "admin_confirmed" | "beta_email_started";
 
 /** Records an admin action in the audit log. Call it in the same mutation as the action, so both happen or neither does. */
 export async function logAdminAction(ctx: MutationCtx, adminId: Id<"users">, action: AdminAction, subjectId: Id<"users"> | undefined, detail: string) {
