@@ -367,8 +367,13 @@ export default defineSchema({
     expiresAt: v.number(),
     usedBy: v.optional(v.id("users")),
     usedAt: v.optional(v.number()),
+    /** Set when the invite was made from a waitlist entry and emailed to that address. */
+    email: v.optional(v.string()),
+    emailStatus: v.optional(v.union(v.literal("sending"), v.literal("sent"), v.literal("failed"))),
+    emailedAt: v.optional(v.number()),
   })
     .index("by_token", ["token"])
+    .index("by_email", ["email"])
     .index("by_used_by", ["usedBy"]),
 
   /** Feedback from testers (Me → Send feedback). Only admins read it. */
