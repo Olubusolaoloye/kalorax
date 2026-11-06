@@ -394,8 +394,14 @@ export default defineSchema({
     boostedAt: v.optional(v.number()),
     /** Join order (1, 2, 3…), so a place in line is worked out without reading the whole list. */
     seq: v.optional(v.number()),
+    /** Secret in the welcome email's confirm link. A referral only counts once the friend confirms. */
+    confirmToken: v.optional(v.string()),
+    confirmedAt: v.optional(v.number()),
+    /** Set once this entry's referrer has been credited for it (so it's never counted twice). */
+    referralCredited: v.optional(v.boolean()),
   })
     .index("by_email", ["email"])
     .index("by_code", ["code"])
-    .index("by_boosted", ["boostedAt"]),
+    .index("by_boosted", ["boostedAt"])
+    .index("by_confirm_token", ["confirmToken"]),
 });

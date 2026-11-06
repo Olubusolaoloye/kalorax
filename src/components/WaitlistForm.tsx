@@ -25,6 +25,7 @@ function useReferralCode() {
 /** Landing-page waitlist (cloud mode only). After joining: your place in line and your invite link. */
 export function WaitlistForm() {
   const join = useMutation(api.waitlist.join);
+  const confirmEmail = useMutation(api.waitlist.confirm);
   const ref = useReferralCode();
   const [code, setCode] = useState<string | null>(() => read(CODE_KEY));
   const [email, setEmail] = useState("");
@@ -33,6 +34,19 @@ export function WaitlistForm() {
   const [message, setMessage] = useState("");
   const [note, setNote] = useState("");
 
+  // The confirm link from the welcome email (/?confirm=TOKEN): confirm once, then show their place in line.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("confirm");
+    if (!token) return;
+    params.delete("confirm");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
+    void confirmEmail({ token }).then((r) => {
+      if (r.ok && r.code) { write(CODE_KEY, r.code); setCode(r.code); }
+      setNote(r.ok ? "Email confirmed. You're on the list!" : "That confirm link isn't valid. Try joining again with your email.");
+    });
+  }, [confirmEmail]);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setState("busy");
@@ -40,7 +54,7 @@ export function WaitlistForm() {
       const res = await join({ email, role, ref: ref ?? undefined });
       write(CODE_KEY, res.code);
       write(REF_KEY, null);
-      setNote(res.alreadyJoined ? "You're already on the list." : res.emailed ? "You're on the list! Look out for a welcome email." : "You're on the list!");
+      setNote(res.alreadyJoined ? "You're already on the list." : res.emailed ? "You're on the list! Check your email to confirm it." : "You're on the list!");
       setCode(res.code);
       setState("idle");
     } catch (err) {
@@ -94,7 +108,7 @@ function WaitlistStatus({ code, note, onReset }: { code: string; note: string; o
       <p className="small lp-referral-hint">
         {s.boosted
           ? `${s.referrals} friends joined with your link. Thank you! Keep sharing: everyone you bring gets in sooner too.`
-          : `Invite ${left} more friend${left === 1 ? "" : "s"} to move up to the first invite group.`}
+          : `Invite ${left} more friend${left === 1 ? "" : "s"} to move up to the first invite group. Each friend counts once they confirm their email.`}
       </p>
       <div className="lp-referral-link">
         <label className="sr-only" htmlFor="wl-link">Your invite link</label>

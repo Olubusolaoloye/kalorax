@@ -4,7 +4,14 @@ import { ConvexError } from "convex/values";
 import type { DataModel, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { isPrivateMode, openInvite, PRIVATE_MESSAGE } from "./helpers";
-import { PasswordReset } from "./passwordReset";
+import { EmailVerification, PasswordReset } from "./passwordReset";
+
+/**
+ * New accounts confirm their email with a code (and existing unconfirmed accounts do so at their next sign-in)
+ * once REQUIRE_EMAIL_VERIFICATION=true. Leave it off until the sending domain is verified in Resend, or nobody
+ * can sign up or sign in.
+ */
+const verifyEmails = process.env.REQUIRE_EMAIL_VERIFICATION === "true";
 
 type Profile = Record<string, unknown> & { email?: string; emailVerified?: boolean; phoneVerified?: boolean; inviteToken?: unknown };
 
@@ -36,6 +43,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Password<DataModel>({
       reset: PasswordReset,
+      ...(verifyEmails ? { verify: EmailVerification } : {}),
       // Default profile (the email as typed), plus the invite token from /join/<token> when there is one.
       profile: (params) =>
         ({ email: params.email as string, ...(typeof params.inviteToken === "string" ? { inviteToken: params.inviteToken } : {}) }) as { email: string },

@@ -23,6 +23,11 @@ export const LIMITS = {
   // Email and WhatsApp: each message costs money and could be aimed at someone who didn't ask.
   passwordResetPerEmail: { max: 3, windowMs: HOUR, message: "Too many reset codes. Please check your email or try again in an hour." },
   passwordResetGlobal: { max: 200, windowMs: HOUR, message: "Password reset is busy. Please try again in a few minutes." },
+  verifyCodePerEmail: { max: 5, windowMs: HOUR, message: "Too many codes. Please check your email or try again in an hour." },
+  verifyCodeGlobal: { max: 300, windowMs: HOUR, message: "Sign-up is busy. Please try again in a few minutes." },
+  // Resend's free plan sends 100 emails a day (UTC), shared by codes and welcome emails. Welcome emails get only
+  // part of it, so reset and sign-up codes keep working (WELCOME_EMAILS_PER_DAY raises it on a paid plan).
+  welcomeEmailsDaily: { max: 40, windowMs: DAY, message: "" },
   whatsappCodePerPhone: { max: 3, windowMs: DAY, message: "Too many codes to this number today. Please try again tomorrow." },
   whatsappCodeGlobal: { max: 300, windowMs: HOUR, message: "WhatsApp codes are busy. Please try again in a few minutes." },
   // Public, no sign-in: caps for everyone together.
@@ -39,8 +44,8 @@ export const LIMITS = {
 export type LimitName = keyof typeof LIMITS;
 
 /** Uses one slot. Returns false when the window is full (nothing is recorded then). */
-export async function tryTake(ctx: MutationCtx, name: LimitName, scope: string, count = 1): Promise<boolean> {
-  const limit: Limit = LIMITS[name];
+export async function tryTake(ctx: MutationCtx, name: LimitName, scope: string, count = 1, max?: number): Promise<boolean> {
+  const limit: Limit = { ...LIMITS[name], ...(max !== undefined ? { max } : {}) };
   const key = scope ? `${name}:${scope}` : name;
   const now = Date.now();
   const windowStart = now - (now % limit.windowMs);

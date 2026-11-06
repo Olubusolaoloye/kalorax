@@ -19,6 +19,7 @@ import type * as coachAgent from "../coachAgent.js";
 import type * as coachTools from "../coachTools.js";
 import type * as crons from "../crons.js";
 import type * as data from "../data.js";
+import type * as email from "../email.js";
 import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
 import type * as importLocal from "../importLocal.js";
@@ -60,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   coachTools: typeof coachTools;
   crons: typeof crons;
   data: typeof data;
+  email: typeof email;
   helpers: typeof helpers;
   http: typeof http;
   importLocal: typeof importLocal;

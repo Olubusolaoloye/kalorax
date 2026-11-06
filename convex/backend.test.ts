@@ -1024,13 +1024,14 @@ describe("waitlist", () => {
       await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
       expect(sent).toHaveLength(1);
-      expect(sent[0]).toMatchObject({ to: ["tunde@unn.edu.ng"], subject: "You're on the Kalorax waitlist" });
+      expect(sent[0]).toMatchObject({ to: ["tunde@unn.edu.ng"], subject: "Confirm your place on the Kalorax waitlist" });
+      expect(sent[0].text).toMatch(/\?confirm=[0-9a-f]{36}/);
       expect(sent[0].text).toMatch(/student account verified/);
 
-      // 60 more in the same hour: the 61st join of the hour gets no email.
+      // 60 more the same day: only the day's share of the email quota (40) gets a welcome email.
       for (let i = 0; i < 60; i++) await t.mutation(api.waitlist.join, { email: `p${i}@example.com`, role: "member" });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
-      expect(sent).toHaveLength(60);
+      expect(sent).toHaveLength(40);
     } finally {
       vi.unstubAllGlobals();
       vi.useRealTimers();
@@ -1179,6 +1180,64 @@ describe("challenges and teams", () => {
     const after = (await boardOf(b, teamId))!;
     expect(after.owner).toBe(true);
     expect(after.rows.map((r) => r.name)).toEqual(["Bisi"]);
+  });
+});
+
+describe("email (Resend)", () => {
+  it("counts a referral only once the friend confirms their email, and only once", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    const sent: Array<{ text: string; to: string[] }> = [];
+    const headers: Array<Record<string, string>> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string; headers: Record<string, string> }) => {
+      sent.push(JSON.parse(init.body));
+      headers.push(init.headers);
+      return new Response(JSON.stringify({ id: `email_${sent.length}` }), { status: 200 });
+    }));
+    try {
+      const t = convexTest(schema, modules);
+      const { code } = await t.mutation(api.waitlist.join, { email: "sharer@example.com", role: "member" });
+      await t.mutation(api.waitlist.join, { email: "friend@example.com", role: "member", ref: code });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      // Not counted yet: the friend hasn't confirmed.
+      expect(await t.query(api.waitlist.status, { code })).toMatchObject({ referrals: 0 });
+      const mail = sent.find((m) => m.to[0] === "friend@example.com")!;
+      expect(headers[1]["Idempotency-Key"]).toBe("welcome/friend@example.com");
+      const token = mail.text.match(/\?confirm=([0-9a-f]{36})/)![1];
+      expect(await t.mutation(api.waitlist.confirm, { token })).toMatchObject({ ok: true });
+      expect(await t.mutation(api.waitlist.confirm, { token })).toMatchObject({ ok: true }); // a second click changes nothing
+      expect(await t.query(api.waitlist.status, { code })).toMatchObject({ referrals: 1 });
+      expect(await t.mutation(api.waitlist.confirm, { token: "0".repeat(36) })).toEqual({ ok: false });
+      expect(await t.mutation(api.waitlist.confirm, { token: "not-a-token" })).toEqual({ ok: false });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries Resend on server errors and rate limits, but not on other errors", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("AUTH_RESEND_KEY", "re_test");
+    const { sendEmail } = await import("./email");
+    const replies = [new Response("busy", { status: 503 }), new Response("slow down", { status: 429, headers: { "retry-after": "1" } }), new Response(JSON.stringify({ id: "email_ok" }), { status: 200 })];
+    const calls: Array<Record<string, string>> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { headers: Record<string, string> }) => { calls.push(init.headers); return replies.shift()!; }));
+    try {
+      const sending = sendEmail({ to: "a@example.com", subject: "Hi", text: "Hello", idempotencyKey: "test/1" });
+      await vi.runAllTimersAsync();
+      expect(await sending).toBe("email_ok");
+      expect(calls).toHaveLength(3);
+      expect(calls.every((h) => h["Idempotency-Key"] === "test/1")).toBe(true);
+
+      vi.stubGlobal("fetch", vi.fn(async () => new Response("bad", { status: 422 })));
+      const bad = sendEmail({ to: "a@example.com", subject: "Hi", text: "Hello", idempotencyKey: "test/2" }).catch((e: Error) => e.message);
+      await vi.runAllTimersAsync();
+      expect(await bad).toMatch(/422/);
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });
 

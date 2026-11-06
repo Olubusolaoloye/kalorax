@@ -6,8 +6,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { Logo } from "../components/Logo";
 
-/** forgot: ask for a reset code. reset: enter the code and a new password. */
-type Flow = "signIn" | "signUp" | "forgot" | "reset";
+/** forgot: ask for a reset code. reset: enter the code and a new password. verify: enter the code that confirms the email. */
+type Flow = "signIn" | "signUp" | "forgot" | "reset" | "verify";
 
 const TIMEOUT_MS = 20000;
 
@@ -21,8 +21,8 @@ function friendly(err: unknown, flow: Flow): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (/invite-only/i.test(msg)) return "Kalorax is invite-only for now. This invite link has been used, has expired or is missing: ask whoever invited you for a new one, or join the waitlist on the home page.";
   if (/already exists/i.test(msg)) return "An account with this email already exists. Try signing in.";
-  if (/isn't set up/i.test(msg)) return "Password reset isn't available yet. Please contact hello@kalorax.app.";
-  if (flow === "reset" && /InvalidSecret|code|expired|verif/i.test(msg)) return "That code is wrong or has expired. Check the email or ask for a new code.";
+  if (/isn't set up/i.test(msg)) return "Email codes aren't available yet. Please try again later.";
+  if ((flow === "reset" || flow === "verify") && /InvalidSecret|code|expired|verif/i.test(msg)) return "That code is wrong or has expired. Check the email or ask for a new code.";
   if (/InvalidSecret|InvalidAccountId|Invalid password|could not/i.test(msg))
     return flow === "signIn" ? "That email and password don't match. Please try again." : "We couldn't create your account. Please try again.";
   if (/password/i.test(msg)) return "Please use a password of at least 8 characters.";
@@ -88,7 +88,10 @@ export function Auth() {
         setBusy(false);
         return;
       }
-      if (flow === "reset") {
+      if (flow === "verify") {
+        form.set("flow", "email-verification");
+        form.set("code", code.trim());
+      } else if (flow === "reset") {
         form.set("flow", "reset-verification");
         form.set("code", code.trim());
         form.set("newPassword", password);
@@ -98,7 +101,15 @@ export function Auth() {
         // From an invite link (/join/<token>): the server checks it when creating the account in private mode.
         if (flow === "signUp" && inviteToken) form.set("inviteToken", inviteToken);
       }
-      await withTimeout(signIn("password", form));
+      const result = await withTimeout(signIn("password", form));
+      // The email isn't confirmed yet: a code was sent, and signing in finishes once it's entered.
+      if (!result.signingIn && (flow === "signUp" || flow === "signIn")) {
+        setFlow("verify");
+        setCode("");
+        setInfo(`We've sent an 8-digit code to ${email.trim()}. Enter it to confirm your email. It expires in 30 minutes.`);
+        setBusy(false);
+        return;
+      }
       // Routing moves you on once the session is active.
     } catch (err) {
       setError(friendly(err, flow));
@@ -106,15 +117,16 @@ export function Auth() {
     }
   };
 
-  const recovering = flow === "forgot" || flow === "reset";
-  const heading = { signIn: "Welcome back", signUp: "Create your account", forgot: "Reset your password", reset: "Choose a new password" }[flow];
+  const recovering = flow === "forgot" || flow === "reset" || flow === "verify";
+  const heading = { signIn: "Welcome back", signUp: "Create your account", forgot: "Reset your password", reset: "Choose a new password", verify: "Confirm your email" }[flow];
   const lead = {
     signIn: "Sign in to pick up where you left off.",
     signUp: "Save your meals, plans and progress across your devices.",
     forgot: "Enter your email and we'll send you a code to reset your password.",
     reset: `Enter the code we emailed to ${email.trim() || "you"} and a new password.`,
+    verify: "One last step: this keeps your account safe and makes sure we can reach you.",
   }[flow];
-  const button = { signIn: "Sign in", signUp: "Create account", forgot: "Email me a code", reset: "Save password & sign in" }[flow];
+  const button = { signIn: "Sign in", signUp: "Create account", forgot: "Email me a code", reset: "Save password & sign in", verify: "Confirm & continue" }[flow];
 
   return (
     <div className="onboarding">
@@ -143,7 +155,7 @@ export function Auth() {
         )}
         {info && <p className="banner banner-info small" role="status">{info}</p>}
         <form onSubmit={submit}>
-          {flow !== "reset" && (
+          {flow !== "reset" && flow !== "verify" && (
             <label className="field">
               <span>Email</span>
               <div className="input-icon">
@@ -152,16 +164,16 @@ export function Auth() {
               </div>
             </label>
           )}
-          {flow === "reset" && (
+          {(flow === "reset" || flow === "verify") && (
             <label className="field">
-              <span>Reset code</span>
+              <span>{flow === "verify" ? "Code from your email" : "Reset code"}</span>
               <div className="input-icon">
                 <KeyRound size={17} aria-hidden />
                 <input inputMode="numeric" autoComplete="one-time-code" required maxLength={8} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="8-digit code" />
               </div>
             </label>
           )}
-          {flow !== "forgot" && (
+          {flow !== "forgot" && flow !== "verify" && (
           <label className="field">
             <span className="row" style={{ justifyContent: "space-between" }}>
               {flow === "reset" ? "New password" : "Password"}
@@ -208,6 +220,9 @@ export function Auth() {
           </button>
           {flow === "reset" && (
             <button type="button" className="link-btn small auth-resend" onClick={() => go("forgot")}>Didn't get a code? Send another</button>
+          )}
+          {flow === "verify" && (
+            <button type="button" className="link-btn small auth-resend" onClick={() => go("signIn")}>Didn't get it? Sign in again to get a new code</button>
           )}
         </form>
         <p className="muted small center" style={{ marginTop: "1rem" }}>
