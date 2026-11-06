@@ -4,6 +4,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { sendEmail } from "./email";
+import { resetCodeEmail, verifyCodeEmail } from "./emails";
 import { LIMITS, type LimitName } from "./rateLimit";
 
 /** 8-digit code, from a secure random source. */
@@ -39,7 +40,7 @@ export const PasswordReset = Email({
     await sendEmail({
       to: email,
       subject: `Your Kalorax reset code: ${token}`,
-      text: `Your Kalorax password reset code is ${token}.\n\nIt expires in 15 minutes. If you didn't ask to reset your password, you can ignore this email.`,
+      content: resetCodeEmail(token),
       idempotencyKey: `reset/${email.toLowerCase()}/${token}`,
     });
   },
@@ -58,7 +59,7 @@ export const EmailVerification = Email({
     await sendEmail({
       to: email,
       subject: `Your Kalorax code: ${token}`,
-      text: `Welcome to Kalorax! Your code to confirm this email is ${token}.\n\nIt expires in 30 minutes. If you didn't create a Kalorax account, you can ignore this email.`,
+      content: verifyCodeEmail(token),
       idempotencyKey: `verify/${email.toLowerCase()}/${token}`,
     });
   },

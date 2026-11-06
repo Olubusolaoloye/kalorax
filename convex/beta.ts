@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { checkText, getProfile, logAdminAction, requireAdmin, requireUser } from "./helpers";
 import { sendEmail } from "./email";
+import { betaWelcomeEmail } from "./emails";
 import { take, tryTake } from "./rateLimit";
 
 const KIND = "beta_welcome";
@@ -142,26 +143,10 @@ export const setJob = internalMutation({
   },
 });
 
-export function betaWelcomeText(name: string, site: string) {
-  return (
-    `Hi ${name || "there"},\n\n` +
-    "Thank you for being one of the first people to use Kalorax. You're now part of our beta test, and your feedback will shape what we build next.\n\n" +
-    "What to try this week:\n" +
-    "- Snap your plate in Messages → Kalorax Coach to get the calories and ingredients\n" +
-    "- Set where you eat on the Me page, so your food list starts with your local dishes\n" +
-    "- Take on this week's challenges and invite a friend to the leaderboard\n\n" +
-    "Found a bug or have an idea? Open the Me page and tap Send feedback. It goes straight to the team.\n\n" +
-    "Thanks for helping us build Kalorax.\nThe Kalorax team\n" +
-    `${site.replace(/^https?:\/\//, "")}\n\n` +
-    "You're getting this because you have a Kalorax account. You can turn off beta emails on the Me page."
-  );
-}
-
 /** Sends in batches, at most the day's allowance; picks up again after midnight (UTC) until everyone has it. */
 export const runBetaWelcome = internalAction({
   args: {},
   handler: async (ctx) => {
-    const site = (process.env.SITE_URL ?? "https://kalorax.app").replace(/\/$/, "");
     for (;;) {
       const batch = await ctx.runQuery(internal.beta.nextBatch, {});
       if (batch.length === 0) {
@@ -177,7 +162,7 @@ export const runBetaWelcome = internalAction({
           return;
         }
         try {
-          const emailId = await sendEmail({ to: u.email, subject: "Welcome to the Kalorax beta 💚", text: betaWelcomeText(u.name, site), idempotencyKey: `beta-welcome/${u.userId}` });
+          const emailId = await sendEmail({ to: u.email, subject: "Welcome to the Kalorax beta 💚", content: betaWelcomeEmail(u.name), idempotencyKey: `beta-welcome/${u.userId}` });
           await ctx.runMutation(internal.beta.markSent, { userId: u.userId, status: "sent", emailId });
         } catch {
           // Logged by sendEmail; recorded so the job never loops on an address that can't receive.
