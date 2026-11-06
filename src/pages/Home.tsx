@@ -1,10 +1,12 @@
-import { Bell, CalendarDays, Calculator, Droplets, GlassWater, Plus, Scale, Target } from "lucide-react";
+import { Bell, CalendarDays, Calculator, Droplets, GlassWater, Plus, Scale, Target, Trophy } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar } from "../components/Layout";
 import { Card, DietitianCard, MacroTiles, MealTag, NutrientChips, PageHeader, Ring, SearchBox, Segments, Thumb } from "../components/ui";
 import { ARTICLES } from "../data/articles";
-import { CUISINES, foodById, nutrientsFor, type Cuisine } from "../data/foods";
+import { CUISINES, cuisineOrder, foodById, nutrientsFor, type Cuisine } from "../data/foods";
+import { regionById } from "../data/regions";
+import { currentStreak } from "../lib/challenges";
 import { recipeById } from "../data/recipes";
 import { BMI_CATEGORY_LABEL, SACHET_ML, bmiCategory } from "../lib/nutrition";
 import { bodySummary, dailyTotals, fmt } from "../state/derived";
@@ -13,7 +15,9 @@ import { MEALS, canUseWorkbench, portionOf, todayIso, useStore, type Meal } from
 const ROLE_LABEL = { consumer: "Member", student: "Nutrition student", dietitian: "Dietitian" };
 
 /** Popular dishes for quick logging, by cuisine (opens Add food with the dish searched). */
-const POPULAR: Record<Cuisine, Array<{ name: string; emoji: string; meal: Meal; query: string; photo: string }>> = {
+type Popular = { name: string; emoji: string; meal: Meal; query: string; photo: string };
+const dish = (name: string, emoji: string, meal: Meal, query: string, photo = query): Popular => ({ name, emoji, meal, query, photo });
+const POPULAR: Record<Cuisine, Popular[]> = {
   Nigerian: [
     { name: "Eba with Egusi soup & Beef", emoji: "🍲", meal: "Lunch", query: "eba", photo: "recipe:egusi-eba" },
     { name: "Jollof rice, Dodo & Chicken", emoji: "🍛", meal: "Lunch", query: "jollof", photo: "recipe:jollof-chicken" },
@@ -32,6 +36,48 @@ const POPULAR: Record<Cuisine, Array<{ name: string; emoji: string; meal: Meal; 
     { name: "Chicken curry", emoji: "🍛", meal: "Lunch", query: "curry", photo: "chicken-curry" },
     { name: "Greek yoghurt & berries", emoji: "🫐", meal: "Breakfast", query: "yoghurt", photo: "yoghurt-bowl" },
   ],
+  Ghanaian: [
+    dish("Banku with grilled tilapia", "🐟", "Dinner", "banku"),
+    dish("Waakye with shito", "🍛", "Lunch", "waakye"),
+    dish("Kenkey with fried fish", "🫓", "Lunch", "kenkey"),
+    dish("Kelewele", "🍌", "Snacks", "kelewele"),
+  ],
+  "East African": [
+    dish("Ugali & sukuma wiki", "🥬", "Dinner", "ugali"),
+    dish("Pilau", "🍛", "Lunch", "pilau"),
+    dish("Chapati with chai", "☕", "Breakfast", "chapati"),
+    dish("Nyama choma", "🍖", "Dinner", "nyama", "nyama-choma"),
+  ],
+  "South African": [
+    dish("Pap & braai chicken", "🍗", "Dinner", "pap", "sa-pap"),
+    dish("Bobotie", "🥘", "Dinner", "bobotie"),
+    dish("Bunny chow", "🍞", "Lunch", "bunny", "bunny-chow"),
+    dish("Rusks with coffee", "🍪", "Breakfast", "rusk"),
+  ],
+  Caribbean: [
+    dish("Jerk chicken, rice & peas", "🍗", "Dinner", "jerk", "jerk-chicken"),
+    dish("Ackee and saltfish", "🍳", "Breakfast", "ackee", "ackee-saltfish"),
+    dish("Curry goat", "🍛", "Lunch", "curry goat", "curry-goat"),
+    dish("Beef patty", "🥟", "Snacks", "patty"),
+  ],
+  Russian: [
+    dish("Borscht with rye bread", "🍲", "Lunch", "borscht"),
+    dish("Pelmeni with sour cream", "🥟", "Dinner", "pelmeni"),
+    dish("Buckwheat kasha", "🥣", "Breakfast", "buckwheat", "grechka"),
+    dish("Syrniki", "🥞", "Breakfast", "syrniki"),
+  ],
+  Indian: [
+    dish("Dal & rice", "🍲", "Lunch", "dal"),
+    dish("Chicken biryani", "🍛", "Dinner", "biryani"),
+    dish("Masala dosa", "🌯", "Breakfast", "dosa", "masala-dosa"),
+    dish("Butter chicken & naan", "🍛", "Dinner", "butter chicken", "butter-chicken"),
+  ],
+  Chinese: [
+    dish("Chow mein", "🍜", "Lunch", "chow mein", "chow-mein"),
+    dish("Kung pao chicken & rice", "🌶️", "Dinner", "kung pao", "kung-pao"),
+    dish("Dumplings", "🥟", "Lunch", "dumplings", "jiaozi"),
+    dish("Congee", "🥣", "Breakfast", "congee"),
+  ],
 };
 
 export function Home() {
@@ -39,7 +85,9 @@ export function Home() {
   const { profile, diary, water, plan, planPortions, latestWeightKg, dietitianTarget, addWater } = useStore();
   const [filter, setFilter] = useState<Meal | "All">("All");
   const [query, setQuery] = useState("");
-  const [cuisine, setCuisine] = useState<Cuisine>("Nigerian");
+  const regionCuisines = cuisineOrder(regionById(profile?.region).cuisines).slice(0, 3);
+  const [picked, setCuisine] = useState<Cuisine | null>(null);
+  const cuisine = picked && regionCuisines.includes(picked) ? picked : regionCuisines[0];
   if (!profile || latestWeightKg === null) return null;
 
   const today = todayIso();
@@ -52,6 +100,7 @@ export function Home() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const meals = filter === "All" ? MEALS : [filter];
+  const streak = currentStreak(diary.map((e) => e.date), today);
 
   return (
     <div className="page page-aside">
@@ -65,7 +114,7 @@ export function Home() {
                 navigate(`/add?q=${encodeURIComponent(query)}`);
               }}
             >
-              <SearchBox value={query} onChange={setQuery} placeholder="Search foods, e.g. eba" />
+              <SearchBox value={query} onChange={setQuery} placeholder="Search any food" />
             </form>
             <Link to="/add" className="btn btn-primary"><Plus size={18} /> Log food</Link>
           </PageHeader>
@@ -203,9 +252,18 @@ export function Home() {
             </Card>
           )}
 
+          <Link to="/challenges" className="card streak-link">
+            <span className="streak-flame" aria-hidden>🔥</span>
+            <span className="grow">
+              <strong>{streak > 0 ? `${streak}-day streak` : "Start a streak today"}</strong>
+              <span className="muted small">{streak > 0 ? "Log a meal today to keep it going. See this week's challenges." : "Log a meal each day and take on this week's challenges."}</span>
+            </span>
+            <Trophy size={20} aria-hidden />
+          </Link>
+
           <div className="section-title"><h2>Popular dishes</h2></div>
           <div className="seg seg-pill" role="tablist" aria-label="Cuisine" style={{ marginBottom: "0.75rem" }}>
-            {CUISINES.map((c) => (
+            {regionCuisines.map((id) => CUISINES.find((c) => c.id === id)!).map((c) => (
               <button key={c.id} role="tab" aria-selected={cuisine === c.id} className={cuisine === c.id ? "on" : ""} onClick={() => setCuisine(c.id)}>
                 {c.emoji} {c.label}
               </button>

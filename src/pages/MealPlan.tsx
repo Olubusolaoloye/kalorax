@@ -9,7 +9,7 @@ import { CUISINES, type Cuisine } from "../data/foods";
 import { ALLERGENS, DIETS, RECIPES, costPerServing, fitsDiet, recipeAllergens, recipeById, type Recipe } from "../data/recipes";
 import { parsePlanCsv, planTemplate } from "../lib/csvImport";
 import { planSnapshot } from "../lib/share";
-import { fitPortion, mealTargets, personalWeekPlan, portionLabel, swapOptions, type PlanPrefs } from "../lib/planner";
+import { fitPortion, mealTargets, personalWeekPlan, portionLabel, swapOptions, type PlanPrefs, RECIPE_CUISINES } from "../lib/planner";
 import { bodySummary, fmt } from "../state/derived";
 import { portionOf, shiftDate, todayIso, useStore, weekDates, type Meal } from "../state/store";
 
@@ -45,7 +45,7 @@ function PrefsSheet({ prefs, onSave, onClose }: { prefs: PlanPrefs; onSave: (p: 
     <Sheet title="Plan preferences" onClose={onClose}>
       <h3>Cuisines</h3>
       <div className="chip-row">
-        {CUISINES.map((c) => (
+        {CUISINES.filter((c) => RECIPE_CUISINES([c.id]).length).map((c) => (
           <button key={c.id} className={`chip chip-outline${draft.cuisines.includes(c.id) ? " on" : ""}`} aria-pressed={draft.cuisines.includes(c.id)} onClick={() => setDraft({ ...draft, cuisines: toggle<Cuisine>(draft.cuisines, c.id) })}>
             {c.emoji} {c.label}
           </button>

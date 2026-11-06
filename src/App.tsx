@@ -27,6 +27,7 @@ const loaders = {
   Me: () => import("./pages/Me"),
   Messages: () => import("./pages/Messages"),
   Onboarding: () => import("./pages/Onboarding"),
+  Challenges: () => import("./pages/Challenges"),
   Pro: () => import("./pages/Pro"),
   Programmes: () => import("./pages/Programmes"),
   Progress: () => import("./pages/Progress"),
@@ -42,6 +43,7 @@ function page<M, K extends keyof M>(load: () => Promise<M>, name: K) {
 const AddFood = page(loaders.AddFood, "AddFood");
 const Auth = page(loaders.Auth, "Auth");
 const Calendar = page(loaders.Calendar, "Calendar");
+const Challenges = page(loaders.Challenges, "Challenges");
 const Clients = page(loaders.Clients, "Clients");
 const ClientPage = page(loaders.Clients, "ClientPage");
 const Credits = page(loaders.Credits, "Credits");
@@ -106,6 +108,7 @@ function appRoutes(isAdmin: boolean) {
       <Route path="/calendar" element={<Calendar />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/exercises" element={<Exercises />} />
+      <Route path="/challenges" element={<Challenges />} />
       <Route path="/reminders" element={<Reminders />} />
       <Route path="/programmes" element={<Programmes />} />
       <Route path="/programmes/paid" element={<PaymentReturn />} />

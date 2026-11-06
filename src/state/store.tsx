@@ -22,6 +22,8 @@ export interface Profile {
   conditions: Condition[];
   /** Public @handle for finding friends (accounts only), without the @. */
   username?: string;
+  /** Where they eat (src/data/regions.ts): orders the food list and recipes. Missing means Nigeria. */
+  region?: string;
 }
 
 export interface DiaryEntry {

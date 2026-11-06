@@ -15,6 +15,15 @@ export interface PlanPrefs {
 
 export const DEFAULT_PLAN_PREFS: PlanPrefs = { cuisines: ["Nigerian"], diet: "any", avoid: [], budgetPerDay: null };
 
+/** Cuisines that have recipes, in the order given. */
+export const RECIPE_CUISINES = (order: Cuisine[]) => order.filter((c) => RECIPES.some((r) => r.cuisine === c));
+
+/** Meal-plan cuisines for a region: its own cuisines that have recipes, or Western and world dishes. */
+export function planCuisinesFor(regionCuisines: Cuisine[]): Cuisine[] {
+  const own = RECIPE_CUISINES(regionCuisines);
+  return own.length ? own.slice(0, 2) : ["Continental", "International"];
+}
+
 export interface PlannedItem {
   date: string;
   meal: Meal;

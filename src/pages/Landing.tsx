@@ -57,7 +57,7 @@ const RIBBON = [
 const CUISINE_PHOTOS: Record<string, string> = { Nigerian: "recipe:egusi-eba", Continental: "english-breakfast", International: "pad-thai" };
 
 const FAQ: Array<[string, ReactNode]> = [
-  ["Is Nigerian food really in it?", <>Yes — that's the point. Eba, amala, pounded yam, jollof, ofada, egusi, efo riro, ogbono, moi moi, akara, suya and more, with local names and portions like wraps, cooking spoons and pieces. Continental and international dishes are there too.</>],
+  ["Is my local food in it?", <>Very likely. Kalorax started with Nigerian food (eba, jollof, egusi, suya and more) and now covers Ghanaian, East and South African, Western, Caribbean, Russian, Indian and Chinese dishes, with local names and real portions like wraps, cooking spoons and pieces. Pick where you eat when you sign up and those dishes come first.</>],
   ["Why don't I see BMR formulas?", <>Members get one simple daily target and a plate guide. The full calculations (BMR equations, energy requirements, macro distribution) live in the Professional Workbench for verified dietitians and nutrition students.</>],
   ["I have diabetes / high blood pressure / I'm pregnant. Can I use it?", <>Yes, for logging and learning. Kalorax won't auto-set a target for you — a dietitian should. Paid, dietitian-led programmes are coming.</>],
   ["Does it work on my phone without data?", <>Kalorax is a light web app you can add to your home screen. Your logs are saved on the device and it keeps working when you're offline.</>],
@@ -155,7 +155,6 @@ function PhoneMock() {
 export function Landing() {
   const root = useReveal();
   const { mode } = useStore();
-  const nigerian = FOODS.filter((f) => f.cuisine === "Nigerian").length;
 
   return (
     <div className="lp" ref={root}>
@@ -224,7 +223,7 @@ export function Landing() {
       {/* Facts strip (real counts from the app) */}
       <section className="lp-facts" data-reveal>
         <div><strong>{FOODS.length}</strong><span>dishes with portion guides</span></div>
-        <div><strong>{nigerian}</strong><span>Nigerian staples, with local names</span></div>
+        <div><strong>{CUISINES.length}</strong><span>cuisines, with local names</span></div>
         <div><strong>{ACTIVITIES.length}</strong><span>activities with calorie estimates</span></div>
         <div><strong>{RECIPES.length}</strong><span>recipes you can plan and shop for</span></div>
       </section>
@@ -307,7 +306,7 @@ export function Landing() {
               <div>
                 <span className="lp-icon"><CalendarRange size={20} /></span>
                 <h3>Plan the week. Shop it in one tap.</h3>
-                <p>Fill a week with Naija, continental or international recipes, then get a grocery list with ₦ estimates.</p>
+                <p>Fill a week with recipes from home or around the world, then get a grocery list with ₦ estimates.</p>
               </div>
               <div className="lp-mini-plan" aria-hidden>
                 {[
@@ -362,8 +361,8 @@ export function Landing() {
       {/* Cuisines */}
       <section className="lp-section lp-cuisines">
         <div className="lp-head" data-reveal>
-          <Eyebrow>Three kitchens</Eyebrow>
-          <h2>From the buka to the bistro.</h2>
+          <Eyebrow>{CUISINES.length} kitchens</Eyebrow>
+          <h2>From Lagos to London, Mumbai to Moscow.</h2>
         </div>
         <div className="lp-cuisine-grid">
           {CUISINES.map((c) => {

@@ -187,8 +187,11 @@ describe("import, deletion and waitlist", () => {
 
   it("adds each email to the waitlist once", async () => {
     const t = convexTest(schema, modules);
-    expect(await t.mutation(api.waitlist.join, { email: "Folake@Example.com ", role: "dietitian" })).toEqual({ alreadyJoined: false, emailed: false });
-    expect(await t.mutation(api.waitlist.join, { email: "folake@example.com", role: "dietitian" })).toEqual({ alreadyJoined: true, emailed: false });
+    const first = await t.mutation(api.waitlist.join, { email: "Folake@Example.com ", role: "dietitian" });
+    expect(first).toMatchObject({ alreadyJoined: false, emailed: false });
+    expect(first.code).toMatch(/^[a-z2-9]{8}$/);
+    // Joining again gives back the same code.
+    expect(await t.mutation(api.waitlist.join, { email: "folake@example.com", role: "dietitian" })).toEqual({ alreadyJoined: true, emailed: false, code: first.code });
     await expect(t.mutation(api.waitlist.join, { email: "not-an-email", role: "member" })).rejects.toThrow(/valid email/);
     expect(await t.run((ctx) => ctx.db.query("waitlist").collect())).toHaveLength(1);
   });
@@ -1001,7 +1004,8 @@ describe("waitlist", () => {
 
     const admin = await signedIn(t, "admin@kalorax.ng");
     const rows = await admin.as.query(api.waitlist.list, {});
-    expect(rows.map((r) => [r.email, r.role])).toEqual([["ada@example.com", "member"], ["funke@clinic.ng", "dietitian"]]);
+    // In invite order: earliest first.
+    expect(rows.map((r) => [r.email, r.role])).toEqual([["funke@clinic.ng", "dietitian"], ["ada@example.com", "member"]]);
     await admin.as.mutation(api.waitlist.recordExport, { count: rows.length });
     expect((await admin.as.query(api.admin.log, {}))[0]).toMatchObject({ action: "waitlist_exported", detail: "Downloaded the waitlist (2 emails) as CSV" });
   });
@@ -1016,7 +1020,7 @@ describe("waitlist", () => {
     }));
     try {
       const t = convexTest(schema, modules);
-      expect(await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" })).toEqual({ alreadyJoined: false, emailed: true });
+      expect(await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" })).toMatchObject({ alreadyJoined: false, emailed: true });
       await t.mutation(api.waitlist.join, { email: "tunde@unn.edu.ng", role: "student" });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
       expect(sent).toHaveLength(1);
@@ -1031,6 +1035,139 @@ describe("waitlist", () => {
       vi.unstubAllGlobals();
       vi.useRealTimers();
     }
+  });
+});
+
+describe("waitlist referrals", () => {
+  it("moves someone into the first invite group once 3 new friends join with their link", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(api.waitlist.join, { email: "early@example.com", role: "member" });
+    const { code } = await t.mutation(api.waitlist.join, { email: "sharer@example.com", role: "member" });
+    expect(await t.query(api.waitlist.status, { code })).toMatchObject({ position: 2, total: 2, referrals: 0, goal: 3, boosted: false });
+
+    await t.mutation(api.waitlist.join, { email: "friend1@example.com", role: "member", ref: code });
+    await t.mutation(api.waitlist.join, { email: "friend2@example.com", role: "member", ref: code.toUpperCase() });
+    // Joining again, or with a bad code, doesn't count.
+    await t.mutation(api.waitlist.join, { email: "friend1@example.com", role: "member", ref: code });
+    await t.mutation(api.waitlist.join, { email: "stranger@example.com", role: "member", ref: "nope" });
+    expect(await t.query(api.waitlist.status, { code })).toMatchObject({ position: 2, referrals: 2, boosted: false });
+
+    await t.mutation(api.waitlist.join, { email: "friend3@example.com", role: "member", ref: code });
+    expect(await t.query(api.waitlist.status, { code })).toMatchObject({ position: 1, total: 6, referrals: 3, boosted: true });
+
+    const { as: admin } = await signedIn(t, "admin@kalorax.ng");
+    const rows = await admin.query(api.waitlist.list, {});
+    expect(rows.map((r) => r.email).slice(0, 2)).toEqual(["sharer@example.com", "early@example.com"]);
+    expect(rows[0]).toMatchObject({ position: 1, referrals: 3, boosted: true });
+  });
+
+  it("only shows a place in line for a real code", async () => {
+    const t = convexTest(schema, modules);
+    expect(await t.query(api.waitlist.status, { code: "abcdefgh" })).toBeNull();
+    expect(await t.query(api.waitlist.status, { code: "<script>" })).toBeNull();
+  });
+});
+
+describe("regions", () => {
+  it("saves where the member eats and lets them change it", async () => {
+    const t = convexTest(schema, modules);
+    const { as } = await signedIn(t, "ivan@example.com");
+    await expect(as.mutation(api.profile.create, { ...PROFILE, region: "atlantis", role: "consumer", weightKg: 80 })).rejects.toThrow(/region/);
+    await as.mutation(api.profile.create, { ...PROFILE, region: "russia", role: "consumer", weightKg: 80 });
+    expect((await as.query(api.me.snapshot, {}))!.profile).toMatchObject({ region: "russia" });
+    await as.mutation(api.profile.update, { region: "uk-europe" });
+    expect((await as.query(api.me.snapshot, {}))!.profile).toMatchObject({ region: "uk-europe" });
+    await expect(as.mutation(api.profile.update, { region: "mars" })).rejects.toThrow(/region/);
+  });
+
+  it("lets meal plans use any cuisine", async () => {
+    const t = convexTest(schema, modules);
+    const { as } = await signedIn(t, "priya@example.com");
+    await as.mutation(api.profile.create, { ...PROFILE, region: "india", role: "consumer", weightKg: 60 });
+    await as.mutation(api.settings.updatePlanPrefs, { prefs: { cuisines: ["Indian", "Continental"], diet: "vegetarian", avoid: [], budgetPerDay: null } });
+  });
+});
+
+describe("challenges and teams", () => {
+  const WEEK = "2026-10-05";
+  const TODAY = "2026-10-11";
+  async function member(t: ReturnType<typeof convexTest>, email: string, name: string) {
+    const m = await signedIn(t, email);
+    await m.as.mutation(api.profile.create, { ...PROFILE, name, role: "consumer", weightKg: 70 });
+    return m;
+  }
+  const logMeals = (m: { as: ReturnType<ReturnType<typeof convexTest>["withIdentity"]> }, dates: string[]) =>
+    m.as.mutation(api.data.addDiaryEntries, { entries: dates.flatMap((date) => (["Breakfast", "Lunch", "Dinner"] as const).map((meal) => ({ date, meal, foodId: "jollof", grams: 140, portionLabel: "2 cooking spoons" }))) });
+
+  it("shows friends' weekly points only when both have joined, and never their food", async () => {
+    const t = convexTest(schema, modules);
+    const ada = await member(t, "ada@example.com", "Ada Obi");
+    const bisi = await member(t, "bisi@example.com", "Bisi");
+    const chidi = await member(t, "chidi@example.com", "Chidi");
+    await ada.as.mutation(api.social.start, { username: "bisi" });
+    await ada.as.mutation(api.social.start, { username: "chidi" });
+    await logMeals(ada, ["2026-10-05", "2026-10-06"]);
+    await logMeals(bisi, ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"]);
+    await bisi.as.mutation(api.data.addExercise, { date: "2026-10-07", activityId: "walking", minutes: 160, status: "completed" });
+
+    // Not joined yet: nothing shown.
+    expect(await ada.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY })).toEqual({ joined: false, rows: [], friendsCount: 2 });
+    await ada.as.mutation(api.challenges.setLeaderboard, { on: true });
+    // Friends who haven't joined stay hidden.
+    expect((await ada.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY })).rows.map((r) => r.name)).toEqual(["Ada"]);
+    await bisi.as.mutation(api.challenges.setLeaderboard, { on: true });
+    const board = await ada.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY });
+    // Bisi: 5 days x 10 + 3 meals on 5 days (100) + 150 active minutes (100). Ada: 2 days x 10.
+    expect(board.rows.map((r) => [r.name, r.points, r.me])).toEqual([["Bisi", 250, false], ["Ada", 20, true]]);
+    expect(Object.keys(board.rows[0]).sort()).toEqual(["activeMinutes", "challengesDone", "daysLogged", "me", "name", "points", "username"]);
+    // Chidi isn't Bisi's friend, so Bisi sees only Ada.
+    await chidi.as.mutation(api.challenges.setLeaderboard, { on: true });
+    expect((await bisi.as.query(api.challenges.friends, { weekStart: WEEK, today: TODAY })).rows.map((r) => r.name).sort()).toEqual(["Ada", "Bisi"]);
+  });
+
+  it("runs a team: join by code, shared board, owner controls, and leaving", async () => {
+    const t = convexTest(schema, modules);
+    const boss = await member(t, "boss@acme.ng", "Funmi");
+    const staff = await member(t, "staff@acme.ng", "Tayo");
+    const outsider = await member(t, "out@example.com", "Kemi");
+    const teamId = await boss.as.mutation(api.teams.create, { name: "  Acme   Lagos ", kind: "company" });
+    const owner = (await boss.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    expect(owner).toMatchObject({ name: "Acme Lagos", owner: true, activeGoal: 150 });
+    expect(owner.code).toMatch(/^[a-z2-9]{8}$/);
+
+    await expect(staff.as.mutation(api.teams.join, { code: "wrongcod" })).rejects.toThrow(/doesn't match/);
+    expect(await staff.as.mutation(api.teams.join, { code: owner.code!.toUpperCase() })).toBe(teamId);
+    await logMeals(staff, ["2026-10-05"]);
+    const seen = (await staff.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    expect(seen).toMatchObject({ owner: false, code: null, totalPoints: 10, activeGoal: 300 });
+    expect(seen.rows.map((r) => r.name)).toEqual(["Tayo", "Funmi"]);
+    // Non-members see nothing, and members can't use owner controls.
+    expect(await outsider.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY })).toBeNull();
+    await expect(staff.as.mutation(api.teams.newTeamCode, { teamId })).rejects.toThrow(/Only the person who created/);
+    await expect(staff.as.mutation(api.teams.removeMember, { teamId, userId: boss.userId })).rejects.toThrow(/Only the person who created/);
+
+    // A new code stops the old one working.
+    await boss.as.mutation(api.teams.newTeamCode, { teamId });
+    await expect(outsider.as.mutation(api.teams.join, { code: owner.code! })).rejects.toThrow(/doesn't match/);
+
+    // The owner leaving hands the team over; the last one out closes it.
+    await boss.as.mutation(api.teams.leave, { teamId });
+    expect((await staff.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!.owner).toBe(true);
+    await staff.as.mutation(api.teams.leave, { teamId });
+    expect(await t.run((ctx) => ctx.db.get(teamId))).toBeNull();
+  });
+
+  it("removes someone from their teams when they delete their data", async () => {
+    const t = convexTest(schema, modules);
+    const a = await member(t, "a@example.com", "Ada");
+    const b = await member(t, "b@example.com", "Bisi");
+    const teamId = await a.as.mutation(api.teams.create, { name: "Run club", kind: "club" });
+    const { code } = (await a.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    await b.as.mutation(api.teams.join, { code: code! });
+    await a.as.mutation(api.data.deleteMyData, {});
+    const after = (await b.as.query(api.teams.board, { teamId, weekStart: WEEK, today: TODAY }))!;
+    expect(after.owner).toBe(true);
+    expect(after.rows.map((r) => r.name)).toEqual(["Bisi"]);
   });
 });
 

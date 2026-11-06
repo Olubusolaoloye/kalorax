@@ -547,18 +547,20 @@ function Waitlist() {
         <SearchBox value={search} onChange={setSearch} placeholder="Search by email" />
         <button className="btn btn-secondary" onClick={download} disabled={busy || rows.length === 0}><Download size={16} /> Download CSV</button>
       </div>
-      <p className="small muted">People who joined from the landing page. These emails are personal data: use them only for Kalorax launch news, and each download is noted in the audit log.</p>
+      <p className="small muted">In invite order: people whose link brought in 3 friends come first, then everyone else by join date. These emails are personal data: use them only for Kalorax launch news, and each download is noted in the audit log.</p>
       {rows.length === 0 ? (
         <div className="card empty-state"><h2>No one on the waitlist yet</h2><p className="muted">Sign-ups from the landing page will appear here.</p></div>
       ) : (
         <div className="card table-wrap">
           <table className="table data-table">
-            <thead><tr><th>Email</th><th>Role</th><th>Joined</th><th><span className="sr-only">Invite</span></th></tr></thead>
+            <thead><tr><th className="num">#</th><th>Email</th><th>Role</th><th className="num">Referrals</th><th>Joined</th><th><span className="sr-only">Invite</span></th></tr></thead>
             <tbody>
               {shown.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.email}</td>
+                  <td className="num small muted">{r.position}</td>
+                  <td>{r.email}{r.boosted && <span className="badge badge-ok" title="Invited 3 friends: in the first invite group"> First group</span>}</td>
                   <td className="small">{WAITLIST_ROLE[r.role]}</td>
+                  <td className="num small">{r.referrals}</td>
                   <td className="small muted" title={new Date(r.joinedAt).toLocaleString("en-NG")}>{ago(r.joinedAt)}</td>
                   <td className="num">
                     {made[r.email] ? (

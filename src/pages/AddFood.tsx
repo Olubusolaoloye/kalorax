@@ -2,7 +2,8 @@ import { ArrowLeft, Minus, Plus, X } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, MacroTiles, MealTag, NutrientChips, PageHeader, SearchBox, Thumb } from "../components/ui";
-import { CATEGORIES_BY_CUISINE, CUISINES, nutrientsFor, searchFoods, type Cuisine, type Food } from "../data/foods";
+import { CATEGORIES_BY_CUISINE, CUISINES, cuisineOrder, nutrientsFor, searchFoods, type Cuisine, type Food } from "../data/foods";
+import { regionById } from "../data/regions";
 import { fmt } from "../state/derived";
 import { MEALS, todayIso, useStore, type Meal } from "../state/store";
 
@@ -17,11 +18,15 @@ const defaultPortion = (f: Food) => f.portions[Math.min(1, f.portions.length - 1
 export function AddFood() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { addDiaryEntries } = useStore();
+  const { addDiaryEntries, profile } = useStore();
+  const region = regionById(profile?.region);
+  // The member's region's cuisines lead: three big tabs, the rest in a row below.
+  const order = useMemo(() => cuisineOrder(region.cuisines), [region]);
+  const info = (id: Cuisine) => CUISINES.find((c) => c.id === id)!;
   const initialMeal = MEALS.includes(params.get("meal") as Meal) ? (params.get("meal") as Meal) : "Lunch";
   const [meal, setMeal] = useState<Meal>(initialMeal);
   const [query, setQuery] = useState(params.get("q") ?? "");
-  const initialCuisine = CUISINES.some((c) => c.id === params.get("cuisine")) ? (params.get("cuisine") as Cuisine) : "Nigerian";
+  const initialCuisine = CUISINES.some((c) => c.id === params.get("cuisine")) ? (params.get("cuisine") as Cuisine) : order[0];
   const [cuisine, setCuisine] = useState<Cuisine>(initialCuisine);
   const [category, setCategory] = useState<string>("All");
   const [selected, setSelected] = useState<Food | null>(null);
@@ -32,18 +37,18 @@ export function AddFood() {
 
   // Searching looks across every cuisine, grouped by cuisine. Browsing shows one cuisine, grouped by category.
   const sections = useMemo(() => {
-    const found = searchFoods(search);
+    const found = searchFoods(search, order);
     if (searching) {
-      return CUISINES.map((c) => ({
-        title: `${c.emoji} ${c.label}`,
-        foods: found.filter((f) => f.cuisine === c.id),
+      return order.map((id) => ({
+        title: `${info(id).emoji} ${info(id).label}`,
+        foods: found.filter((f) => f.cuisine === id),
       })).filter((s) => s.foods.length > 0);
     }
     return CATEGORIES_BY_CUISINE[cuisine]
       .filter((cat) => category === "All" || cat === category)
       .map((cat) => ({ title: cat, foods: found.filter((f) => f.cuisine === cuisine && f.category === cat) }))
       .filter((s) => s.foods.length > 0);
-  }, [search, searching, cuisine, category]);
+  }, [search, searching, cuisine, category, order]);
 
   const save = () => {
     addDiaryEntries(tray.map((p) => ({ date: todayIso(), meal, foodId: p.food.id, grams: p.grams, portionLabel: p.portionLabel })));
@@ -65,7 +70,7 @@ export function AddFood() {
           </li>
         ))}
       </ul>
-      <p className="muted small">Add more items to build a combo, e.g. eba + egusi + beef.</p>
+      <p className="muted small">Add more items to build a combo, e.g. rice + stew + chicken.</p>
       <button className="btn btn-primary btn-block" onClick={save}>
         Save to {meal} · {fmt(trayKcal)} kcal
       </button>
@@ -74,7 +79,7 @@ export function AddFood() {
 
   return (
     <div className="page page-aside">
-      <PageHeader title="Add food" subtitle="Nigerian foods in the portions you really eat">
+      <PageHeader title="Add food" subtitle={`Dishes from ${region.label === "Somewhere else" ? "around the world" : region.label} first, in the portions you really eat`}>
         <div className="seg" role="group" aria-label="Meal">
           {MEALS.map((m) => (
             <button key={m} className={meal === m ? "on" : ""} onClick={() => setMeal(m)}>{m}</button>
@@ -97,11 +102,11 @@ export function AddFood() {
             />
           ) : (
             <>
-              <SearchBox value={query} onChange={setQuery} placeholder="Search any dish: eba, pizza, shawarma…" autoFocus />
+              <SearchBox value={query} onChange={setQuery} placeholder="Search any dish: jollof, borscht, pizza, dal…" autoFocus />
               {!searching && (
                 <>
                   <div className="cuisine-tabs" role="tablist" aria-label="Cuisine">
-                    {CUISINES.map((c) => (
+                    {order.slice(0, 3).map(info).map((c) => (
                       <button
                         key={c.id}
                         role="tab"
@@ -117,6 +122,13 @@ export function AddFood() {
                           <strong>{c.label}</strong>
                           <small>{c.blurb}</small>
                         </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="chip-group chip-scroll more-cuisines" role="group" aria-label="More cuisines">
+                    {order.slice(3).map(info).map((c) => (
+                      <button key={c.id} className={`chip chip-outline${cuisine === c.id ? " on" : ""}`} aria-pressed={cuisine === c.id} onClick={() => { setCuisine(c.id); setCategory("All"); }}>
+                        <span aria-hidden>{c.emoji}</span> {c.label}
                       </button>
                     ))}
                   </div>

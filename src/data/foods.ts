@@ -8,18 +8,42 @@ export interface Portion {
   grams: number;
 }
 
-export type Cuisine = "Nigerian" | "Continental" | "International";
+export type Cuisine =
+  | "Nigerian"
+  | "Ghanaian"
+  | "East African"
+  | "South African"
+  | "Continental"
+  | "Caribbean"
+  | "Russian"
+  | "Indian"
+  | "Chinese"
+  | "International";
 
 export const CUISINES: Array<{ id: Cuisine; label: string; emoji: string; blurb: string }> = [
   { id: "Nigerian", label: "Naija", emoji: "🇳🇬", blurb: "Swallows, soups, rice and street favourites" },
-  { id: "Continental", label: "Continental", emoji: "🍽️", blurb: "European-style breakfasts, mains and sides" },
-  { id: "International", label: "International", emoji: "🌍", blurb: "Popular dishes from around the world" },
+  { id: "Ghanaian", label: "Ghanaian", emoji: "🇬🇭", blurb: "Banku, kenkey, waakye and light soup" },
+  { id: "East African", label: "East African", emoji: "🇰🇪", blurb: "Ugali, chapati, pilau and nyama choma" },
+  { id: "South African", label: "South African", emoji: "🇿🇦", blurb: "Pap, bobotie, braai and bunny chow" },
+  { id: "Continental", label: "Western", emoji: "🍽️", blurb: "European and American breakfasts, mains and sides" },
+  { id: "Caribbean", label: "Caribbean", emoji: "🇯🇲", blurb: "Jerk chicken, rice and peas, patties" },
+  { id: "Russian", label: "Russian", emoji: "🇷🇺", blurb: "Borscht, pelmeni, blini and kasha" },
+  { id: "Indian", label: "Indian", emoji: "🇮🇳", blurb: "Dal, curries, biryani and breads" },
+  { id: "Chinese", label: "Chinese", emoji: "🇨🇳", blurb: "Noodles, stir-fries and dumplings" },
+  { id: "International", label: "Around the world", emoji: "🌍", blurb: "Fast food and favourites from everywhere" },
 ];
 
 /** Category sections shown for each cuisine, in display order. */
 export const CATEGORIES_BY_CUISINE: Record<Cuisine, string[]> = {
   Nigerian: ["Swallow", "Rice & grains", "Cereals & porridge", "Yam & plantain", "Soups", "Beans", "Protein", "Snacks & drinks", "Fruits"],
+  Ghanaian: ["Staples", "Soups & stews", "Mains & sides", "Street food & drinks"],
+  "East African": ["Staples", "Stews & mains", "Snacks & drinks"],
+  "South African": ["Mains", "Braai & meat", "Snacks & sides"],
   Continental: ["Breakfast", "Mains", "Pasta", "Salads & soups", "Sides & bakery"],
+  Caribbean: ["Mains", "Sides", "Snacks & drinks"],
+  Russian: ["Soups", "Mains", "Breakfast & bakery", "Salads & sides"],
+  Indian: ["Curries", "Rice & breads", "Breakfast", "Snacks & drinks"],
+  Chinese: ["Rice & noodles", "Mains", "Dim sum & snacks"],
   International: ["Fast food", "Asian", "Middle Eastern", "Mexican", "Healthy bowls"],
 };
 
@@ -108,6 +132,135 @@ const INTERNATIONAL: Food[] = [
   { id: "poke", cuisine: "International", category: "Healthy bowls", emoji: "🥙", name: "Chicken quinoa bowl", aliases: ["grain bowl", "quinoa"], kcal: 140, carbs: 15, protein: 11, fat: 4, portions: bowl(350), source: SAMPLE },
 ];
 
+
+const piece = (label: string, grams: number, more: number[] = []): Portion[] => [
+  { label: `1 ${label}`, grams },
+  ...more.map((n) => ({ label: `${n} ${label}s`, grams: grams * n })),
+];
+const balls: Portion[] = [{ label: "Small ball", grams: 200 }, { label: "1 ball", grams: 300 }, { label: "Large ball", grams: 400 }];
+const f = (cuisine: Cuisine, category: string, id: string, emoji: string, name: string, aliases: string[], kcal: number, carbs: number, protein: number, fat: number, portions: Portion[]): Food =>
+  ({ id, cuisine, category, emoji, name, aliases, kcal, carbs, protein, fat, portions, source: SAMPLE });
+
+const MORE_WESTERN: Food[] = [
+  f("Continental", "Breakfast", "bagel", "🥯", "Bagel with cream cheese", ["bagel"], 280, 42, 9, 8, piece("bagel", 130)),
+  f("Continental", "Mains", "mac-cheese", "🧀", "Mac and cheese", ["macaroni cheese", "mac n cheese"], 165, 17, 7, 8, bowl(250)),
+  f("Continental", "Sides & bakery", "sandwich", "🥪", "Chicken sandwich", ["sandwich", "sub"], 230, 24, 13, 9, piece("sandwich", 200)),
+];
+
+const GHANAIAN: Food[] = [
+  f("Ghanaian", "Staples", "banku", "🫓", "Banku", ["banku and okro"], 115, 26, 1.6, 0.4, balls),
+  f("Ghanaian", "Staples", "kenkey", "🫓", "Kenkey", ["dokon", "fante kenkey", "ga kenkey"], 120, 26, 2.5, 0.8, piece("ball", 250, [2])),
+  f("Ghanaian", "Staples", "gh-fufu", "🫓", "Fufu (cassava & plantain)", ["ghana fufu", "fufu"], 130, 31, 1, 0.3, balls),
+  f("Ghanaian", "Staples", "waakye", "🍛", "Waakye", ["rice and beans", "waache"], 150, 27, 6, 2, plate(300)),
+  f("Ghanaian", "Staples", "gh-jollof", "🍛", "Ghana jollof rice", ["jollof", "ghana jollof"], 165, 26, 3.5, 5.5, plate(300)),
+  f("Ghanaian", "Soups & stews", "light-soup", "🍲", "Light soup (goat)", ["nkrakra", "goat light soup"], 60, 3, 7, 2, soup),
+  f("Ghanaian", "Soups & stews", "groundnut-soup", "🍲", "Groundnut soup", ["nkate nkwan", "peanut soup"], 160, 6, 7, 12, soup),
+  f("Ghanaian", "Soups & stews", "palm-nut-soup", "🍲", "Palm nut soup", ["abenkwan"], 200, 5, 6, 17, soup),
+  f("Ghanaian", "Soups & stews", "kontomire", "🥬", "Kontomire stew", ["palava sauce", "cocoyam leaf stew"], 130, 6, 5, 10, soup),
+  f("Ghanaian", "Mains & sides", "red-red", "🫘", "Red red (beans & plantain)", ["red red", "gobe"], 175, 24, 6, 6, plate(300)),
+  f("Ghanaian", "Mains & sides", "grilled-tilapia", "🐟", "Grilled tilapia", ["tilapia", "banku and tilapia"], 130, 0, 26, 3, [{ label: "Half fish", grams: 150 }, { label: "1 fish", grams: 300 }]),
+  f("Ghanaian", "Mains & sides", "shito", "🌶️", "Shito (black pepper sauce)", ["shito", "pepper sauce"], 450, 10, 8, 42, [{ label: "1 tablespoon", grams: 15 }, { label: "2 tablespoons", grams: 30 }]),
+  f("Ghanaian", "Street food & drinks", "kelewele", "🍌", "Kelewele", ["spicy fried plantain"], 230, 34, 1.3, 10, [{ label: "Small pack", grams: 100 }, { label: "Large pack", grams: 200 }]),
+  f("Ghanaian", "Street food & drinks", "sobolo", "🥤", "Sobolo (sweetened)", ["bissap", "hibiscus drink"], 45, 11, 0, 0, [{ label: "1 cup", grams: 250 }, { label: "1 bottle (50cl)", grams: 500 }]),
+];
+
+const EAST_AFRICAN: Food[] = [
+  f("East African", "Staples", "ugali", "🫓", "Ugali", ["sima", "posho", "nsima"], 115, 25, 2.5, 0.6, [{ label: "Small piece", grams: 150 }, { label: "1 serving", grams: 250 }, { label: "Large serving", grams: 350 }]),
+  f("East African", "Staples", "chapati", "🫓", "Chapati", ["chapo"], 300, 46, 7, 10, piece("chapati", 70, [2])),
+  f("East African", "Staples", "pilau", "🍛", "Pilau", ["pilau rice"], 175, 27, 4, 5.5, plate(300)),
+  f("East African", "Staples", "injera", "🫓", "Injera", ["enjera"], 160, 33, 5, 1, piece("piece", 125, [2])),
+  f("East African", "Staples", "matoke", "🍌", "Matoke (stewed bananas)", ["matooke", "green bananas"], 110, 22, 1.5, 2.5, plate(300)),
+  f("East African", "Stews & mains", "sukuma-wiki", "🥬", "Sukuma wiki", ["collard greens", "kale"], 70, 6, 3, 4, [{ label: "1 serving", grams: 150 }]),
+  f("East African", "Stews & mains", "nyama-choma", "🍖", "Nyama choma", ["grilled goat", "roast meat"], 230, 0, 27, 13, [{ label: "Small plate", grams: 150 }, { label: "1 plate", grams: 250 }]),
+  f("East African", "Stews & mains", "githeri", "🫘", "Githeri", ["maize and beans"], 130, 20, 6, 2.5, plate(300)),
+  f("East African", "Stews & mains", "doro-wat", "🍲", "Doro wat", ["chicken stew", "doro wot"], 160, 5, 14, 9, bowl(250)),
+  f("East African", "Snacks & drinks", "mandazi", "🍩", "Mandazi", ["maandazi", "swahili bun"], 390, 48, 7, 19, piece("piece", 50, [3])),
+  f("East African", "Snacks & drinks", "beef-samosa", "🥟", "Beef samosa", ["sambusa", "samosa"], 260, 26, 8, 14, piece("samosa", 60, [2])),
+  f("East African", "Snacks & drinks", "rolex", "🌯", "Rolex (chapati egg roll)", ["rolex"], 230, 22, 9, 12, piece("rolex", 250)),
+  f("East African", "Snacks & drinks", "chai", "☕", "Chai (milk tea)", ["kenyan tea", "masala chai"], 60, 8, 2, 2, [{ label: "1 cup", grams: 250 }]),
+];
+
+const SOUTH_AFRICAN: Food[] = [
+  f("South African", "Mains", "sa-pap", "🫓", "Pap (maize porridge)", ["mieliepap", "stywe pap", "phutu"], 110, 24, 2.5, 0.5, [{ label: "1 serving", grams: 250 }, { label: "Large serving", grams: 350 }]),
+  f("South African", "Mains", "bobotie", "🥘", "Bobotie", ["bobotie"], 170, 8, 12, 10, plate(300)),
+  f("South African", "Mains", "bunny-chow", "🍞", "Bunny chow", ["bunny", "kota"], 210, 24, 9, 9, [{ label: "Quarter loaf", grams: 450 }, { label: "Half loaf", grams: 800 }]),
+  f("South African", "Mains", "samp-beans", "🫘", "Samp and beans", ["umngqusho"], 125, 23, 6, 1, plate(300)),
+  f("South African", "Braai & meat", "boerewors", "🌭", "Boerewors", ["wors", "sausage"], 280, 3, 15, 23, [{ label: "1 piece (100g)", grams: 100 }, { label: "2 pieces", grams: 200 }]),
+  f("South African", "Braai & meat", "braai-chicken", "🍗", "Braai chicken", ["grilled chicken"], 200, 0, 25, 11, [{ label: "1 piece", grams: 120 }, { label: "2 pieces", grams: 240 }]),
+  f("South African", "Braai & meat", "biltong", "🥓", "Biltong", ["dried meat", "droewors"], 300, 2, 55, 8, [{ label: "Small pack", grams: 30 }, { label: "1 pack", grams: 60 }]),
+  f("South African", "Snacks & sides", "chakalaka", "🥫", "Chakalaka", ["relish"], 70, 9, 2, 3, [{ label: "1 serving", grams: 150 }]),
+  f("South African", "Snacks & sides", "vetkoek", "🍞", "Vetkoek", ["fat cake", "magwinya"], 330, 40, 7, 16, piece("vetkoek", 90)),
+  f("South African", "Snacks & sides", "koeksister", "🥨", "Koeksister", ["koesister"], 420, 55, 4, 20, piece("piece", 50)),
+  f("South African", "Snacks & sides", "rusk", "🍪", "Rusks", ["beskuit", "ouma rusks"], 420, 65, 9, 14, piece("rusk", 35, [2])),
+  f("South African", "Snacks & sides", "malva", "🍮", "Malva pudding", ["malva"], 330, 47, 4, 15, [{ label: "1 portion", grams: 120 }]),
+];
+
+const CARIBBEAN: Food[] = [
+  f("Caribbean", "Mains", "jerk-chicken", "🍗", "Jerk chicken", ["jerk"], 190, 3, 25, 9, [{ label: "1 piece", grams: 120 }, { label: "Quarter chicken", grams: 250 }]),
+  f("Caribbean", "Mains", "curry-goat", "🍛", "Curry goat", ["curried goat", "curry mutton"], 160, 4, 18, 8, bowl(250)),
+  f("Caribbean", "Mains", "ackee-saltfish", "🍳", "Ackee and saltfish", ["ackee"], 180, 5, 12, 13, plate(250)),
+  f("Caribbean", "Mains", "oxtail", "🍲", "Oxtail stew", ["stewed oxtail"], 200, 4, 18, 13, bowl(250)),
+  f("Caribbean", "Mains", "trini-roti", "🌯", "Roti wrap with curry", ["dhalpuri", "buss up shut"], 220, 25, 8, 10, piece("roti wrap", 350)),
+  f("Caribbean", "Sides", "rice-peas", "🍚", "Rice and peas", ["rice & peas"], 160, 27, 4.5, 4, plate(250)),
+  f("Caribbean", "Sides", "callaloo", "🥬", "Callaloo", ["callaloo greens"], 60, 5, 3, 3, [{ label: "1 serving", grams: 150 }]),
+  f("Caribbean", "Sides", "festival", "🥖", "Festival (fried dumpling)", ["festival", "fried dumpling"], 330, 50, 5, 12, piece("festival", 70, [2])),
+  f("Caribbean", "Sides", "bammy", "🫓", "Bammy", ["cassava flatbread"], 210, 50, 1, 0.5, piece("bammy", 100)),
+  f("Caribbean", "Snacks & drinks", "patty", "🥟", "Jamaican beef patty", ["patty", "beef patty"], 290, 28, 8, 16, piece("patty", 140)),
+  f("Caribbean", "Snacks & drinks", "doubles", "🌮", "Doubles", ["doubles"], 250, 32, 8, 10, [{ label: "1 doubles", grams: 120 }, { label: "2 doubles", grams: 240 }]),
+  f("Caribbean", "Snacks & drinks", "sorrel", "🥤", "Sorrel drink", ["sorrel"], 45, 11, 0, 0, [{ label: "1 glass", grams: 250 }]),
+];
+
+const RUSSIAN: Food[] = [
+  f("Russian", "Soups", "borscht", "🍲", "Borscht", ["borsch", "beetroot soup"], 50, 6, 2, 2, bowl(350)),
+  f("Russian", "Soups", "shchi", "🍲", "Shchi (cabbage soup)", ["cabbage soup"], 40, 4, 2, 2, bowl(350)),
+  f("Russian", "Soups", "solyanka", "🍲", "Solyanka", ["selyanka"], 75, 3, 5, 5, bowl(350)),
+  f("Russian", "Mains", "pelmeni", "🥟", "Pelmeni", ["dumplings", "pelmeni with sour cream"], 250, 30, 11, 9, [{ label: "10 pieces", grams: 150 }, { label: "20 pieces", grams: 300 }]),
+  f("Russian", "Mains", "vareniki", "🥟", "Vareniki (potato)", ["varenyky", "pierogi"], 200, 34, 5, 5, [{ label: "10 pieces", grams: 150 }, { label: "20 pieces", grams: 300 }]),
+  f("Russian", "Mains", "stroganoff", "🍛", "Beef stroganoff", ["stroganov"], 170, 5, 14, 11, plate(250)),
+  f("Russian", "Mains", "plov", "🍛", "Plov", ["pilaf", "osh"], 190, 25, 7, 7, plate(300)),
+  f("Russian", "Breakfast & bakery", "grechka", "🥣", "Buckwheat kasha", ["grechka", "buckwheat"], 100, 20, 3.5, 1, bowl(250)),
+  f("Russian", "Breakfast & bakery", "syrniki", "🥞", "Syrniki", ["cottage cheese pancakes"], 220, 20, 14, 9, [{ label: "2 pieces", grams: 120 }, { label: "3 pieces", grams: 180 }]),
+  f("Russian", "Breakfast & bakery", "blini", "🥞", "Blini", ["bliny", "crepes"], 225, 28, 6, 10, [{ label: "1 blin", grams: 50 }, { label: "3 blini", grams: 150 }]),
+  f("Russian", "Breakfast & bakery", "pirozhki", "🥐", "Pirozhki (meat)", ["pirozhok", "piroshki"], 260, 32, 9, 11, [{ label: "1 pirozhok", grams: 80 }, { label: "2 pirozhki", grams: 160 }]),
+  f("Russian", "Breakfast & bakery", "rye-bread", "🍞", "Rye bread", ["black bread", "borodinsky"], 250, 48, 8.5, 3.3, [{ label: "1 slice", grams: 35 }, { label: "2 slices", grams: 70 }]),
+  f("Russian", "Salads & sides", "olivier", "🥗", "Olivier salad", ["russian salad", "olivye"], 200, 8, 5, 16, bowl(200)),
+  f("Russian", "Salads & sides", "shuba", "🥗", "Herring under a fur coat", ["shuba", "selyodka pod shuboy"], 190, 8, 6, 15, bowl(200)),
+  f("Russian", "Salads & sides", "kefir", "🥛", "Kefir", ["kefir drink"], 55, 4, 3, 3, [{ label: "1 glass", grams: 250 }]),
+];
+
+const INDIAN: Food[] = [
+  f("Indian", "Curries", "dal", "🍲", "Dal tadka", ["dal", "dhal", "lentil curry"], 120, 15, 6, 4, bowl(250)),
+  f("Indian", "Curries", "chana-masala", "🍛", "Chana masala", ["chole", "chickpea curry"], 140, 18, 7, 5, bowl(250)),
+  f("Indian", "Curries", "butter-chicken", "🍛", "Butter chicken", ["murgh makhani"], 160, 5, 13, 10, bowl(250)),
+  f("Indian", "Curries", "palak-paneer", "🥬", "Palak paneer", ["saag paneer"], 150, 6, 7, 11, bowl(250)),
+  f("Indian", "Curries", "rajma", "🫘", "Rajma", ["kidney bean curry"], 125, 17, 6, 3.5, bowl(250)),
+  f("Indian", "Rice & breads", "biryani", "🍛", "Chicken biryani", ["biryani", "biriyani"], 180, 23, 8, 6, plate(300)),
+  f("Indian", "Rice & breads", "basmati", "🍚", "Basmati rice (boiled)", ["basmati", "steamed rice"], 130, 28, 2.7, 0.3, [{ label: "1 cup", grams: 160 }, { label: "1 plate", grams: 300 }]),
+  f("Indian", "Rice & breads", "roti", "🫓", "Roti", ["chapati", "phulka"], 300, 46, 9, 8, piece("roti", 40, [2, 4])),
+  f("Indian", "Rice & breads", "naan", "🫓", "Naan", ["butter naan", "garlic naan"], 290, 50, 9, 6, piece("naan", 90)),
+  f("Indian", "Breakfast", "masala-dosa", "🌯", "Masala dosa", ["dosa"], 165, 25, 4, 5, piece("dosa", 200)),
+  f("Indian", "Breakfast", "idli", "🍘", "Idli", ["idli sambar"], 130, 26, 4, 0.5, [{ label: "2 idli", grams: 80 }, { label: "4 idli", grams: 160 }]),
+  f("Indian", "Breakfast", "poha", "🥣", "Poha", ["flattened rice"], 130, 22, 3, 3.5, bowl(200)),
+  f("Indian", "Snacks & drinks", "veg-samosa", "🥟", "Vegetable samosa", ["samosa", "aloo samosa"], 260, 30, 5, 13, piece("samosa", 70, [2])),
+  f("Indian", "Snacks & drinks", "pakora", "🧆", "Pakora", ["bhaji", "pakoda"], 290, 25, 7, 18, [{ label: "5 pieces", grams: 100 }]),
+  f("Indian", "Snacks & drinks", "masala-chai", "☕", "Masala chai", ["chai", "tea"], 50, 7, 1.6, 1.7, [{ label: "1 cup", grams: 200 }]),
+];
+
+const CHINESE: Food[] = [
+  f("Chinese", "Rice & noodles", "steamed-rice", "🍚", "Steamed white rice", ["rice"], 130, 28, 2.7, 0.3, bowl(200)),
+  f("Chinese", "Rice & noodles", "chow-mein", "🍜", "Chow mein", ["lo mein", "fried noodles"], 160, 22, 6, 5.5, plate(300)),
+  f("Chinese", "Rice & noodles", "congee", "🥣", "Congee", ["jook", "rice porridge"], 50, 10, 1.5, 0.5, bowl(350)),
+  f("Chinese", "Mains", "kung-pao", "🌶️", "Kung pao chicken", ["gong bao chicken"], 180, 8, 14, 10, plate(250)),
+  f("Chinese", "Mains", "sweet-sour-pork", "🍖", "Sweet and sour pork", ["sweet and sour"], 230, 22, 10, 11, plate(250)),
+  f("Chinese", "Mains", "mapo-tofu", "🍲", "Mapo tofu", ["tofu"], 120, 4, 7, 8, bowl(250)),
+  f("Chinese", "Mains", "beef-broccoli", "🥦", "Beef with broccoli", ["beef and broccoli"], 115, 6, 10, 5.5, plate(250)),
+  f("Chinese", "Mains", "peking-duck", "🦆", "Peking duck", ["roast duck"], 340, 3, 19, 28, [{ label: "Small portion", grams: 100 }, { label: "1 portion", grams: 200 }]),
+  f("Chinese", "Dim sum & snacks", "jiaozi", "🥟", "Dumplings (jiaozi)", ["dumplings", "potstickers", "gyoza"], 220, 25, 9, 9, [{ label: "6 pieces", grams: 150 }, { label: "12 pieces", grams: 300 }]),
+  f("Chinese", "Dim sum & snacks", "bao", "🥟", "Bao bun (pork)", ["baozi", "char siu bao"], 250, 35, 9, 8, piece("bun", 90, [2])),
+  f("Chinese", "Dim sum & snacks", "spring-rolls", "🥢", "Spring rolls", ["egg rolls"], 250, 28, 5, 13, [{ label: "2 rolls", grams: 100 }, { label: "4 rolls", grams: 200 }]),
+  f("Chinese", "Dim sum & snacks", "hot-sour-soup", "🍲", "Hot and sour soup", ["suan la tang"], 40, 4, 3, 1.5, bowl(300)),
+];
+
 const NIGERIAN: Food[] = [
   { id: "eba", cuisine: "Nigerian", category: "Swallow", emoji: "🫓", name: "Eba", aliases: ["garri", "gari"], kcal: 160, carbs: 38, protein: 0.5, fat: 0.3, portions: wraps, source: SAMPLE },
   { id: "amala", cuisine: "Nigerian", category: "Swallow", emoji: "🫓", name: "Amala", aliases: ["yam flour", "elubo"], kcal: 130, carbs: 31, protein: 1.5, fat: 0.2, portions: wraps, source: SAMPLE },
@@ -180,7 +333,7 @@ const NIGERIAN: Food[] = [
     portions: riceSpoons, source: SAMPLE },
   { id: "coconut-rice", cuisine: "Nigerian", category: "Rice & grains", emoji: "🍛", name: "Coconut rice", aliases: ["coconut jollof"], kcal: 175, carbs: 25, protein: 3, fat: 7,
     portions: riceSpoons, source: SAMPLE },
-  { id: "rice-beans", cuisine: "Nigerian", category: "Rice & grains", emoji: "🍛", name: "Rice & beans", aliases: ["rice and beans", "waakye"], kcal: 134, carbs: 24, protein: 5, fat: 2,
+  { id: "rice-beans", cuisine: "Nigerian", category: "Rice & grains", emoji: "🍛", name: "Rice & beans", aliases: ["rice and beans"], kcal: 134, carbs: 24, protein: 5, fat: 2,
     portions: riceSpoons, source: SAMPLE },
   { id: "jollof-spaghetti", cuisine: "Nigerian", category: "Rice & grains", emoji: "🍝", name: "Jollof spaghetti", aliases: ["spaghetti jollof", "jollof pasta"], kcal: 156, carbs: 25, protein: 5, fat: 4,
     portions: plate(300), source: SAMPLE },
@@ -290,14 +443,25 @@ const NIGERIAN: Food[] = [
     portions: [{ label: "1 garden egg", grams: 60 }, { label: "3 garden eggs", grams: 180 }], source: SAMPLE },
 ];
 
-export const FOODS: Food[] = [...NIGERIAN, ...CONTINENTAL, ...INTERNATIONAL];
+export const FOODS: Food[] = [
+  ...NIGERIAN, ...GHANAIAN, ...EAST_AFRICAN, ...SOUTH_AFRICAN, ...CONTINENTAL, ...MORE_WESTERN,
+  ...CARIBBEAN, ...RUSSIAN, ...INDIAN, ...CHINESE, ...INTERNATIONAL,
+];
 
-export function searchFoods(query: string): Food[] {
+/** Every cuisine, with the member's region's cuisines first. */
+export function cuisineOrder(regionCuisines: Cuisine[]): Cuisine[] {
+  return [...regionCuisines, ...CUISINES.map((c) => c.id).filter((c) => !regionCuisines.includes(c))];
+}
+
+/** Foods matching the query. With `preferred` cuisines, those come first (in that order). */
+export function searchFoods(query: string, preferred: Cuisine[] = []): Food[] {
   const q = query.trim().toLowerCase();
-  if (!q) return FOODS;
-  return FOODS.filter(
-    (f) => f.name.toLowerCase().includes(q) || f.aliases.some((a) => a.toLowerCase().includes(q)),
-  );
+  const found = q
+    ? FOODS.filter((f) => f.name.toLowerCase().includes(q) || f.aliases.some((a) => a.toLowerCase().includes(q)))
+    : FOODS;
+  if (!preferred.length) return found;
+  const rank = (c: Cuisine) => { const i = preferred.indexOf(c); return i < 0 ? preferred.length : i; };
+  return [...found].sort((a, b) => rank(a.cuisine) - rank(b.cuisine));
 }
 
 export const RECIPE_PREFIX = "recipe:";

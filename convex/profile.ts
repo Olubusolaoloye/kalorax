@@ -2,10 +2,12 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { checkDate, checkRange, checkText, getProfile, requireUser } from "./helpers";
 import { normalizeUsername, profileByUsername, suggestUsername, usernameProblem } from "./usernames";
+import { isRegion } from "../src/data/regions";
 import { profileFields, role } from "./validators";
 
-function checkProfile(p: { name?: string; birthDate?: string; heightCm?: number }) {
+function checkProfile(p: { name?: string; birthDate?: string; heightCm?: number; region?: string }) {
   if (p.name !== undefined) checkText(p.name, 60, "Name");
+  if (p.region !== undefined && !isRegion(p.region)) throw new ConvexError("Pick a region from the list.");
   if (p.birthDate !== undefined) checkDate(p.birthDate);
   if (p.heightCm !== undefined) checkRange(p.heightCm, 50, 250, "Height (cm)");
 }
@@ -46,6 +48,7 @@ export const update = mutation({
     activity: v.optional(profileFields.activity),
     goal: v.optional(profileFields.goal),
     conditions: v.optional(profileFields.conditions),
+    region: v.optional(v.string()),
   },
   handler: async (ctx, patch) => {
     const userId = await requireUser(ctx);

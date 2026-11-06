@@ -11,6 +11,8 @@ import {
   type Goal,
   type Sex,
 } from "../lib/nutrition";
+import { guessRegion, regionById, REGIONS } from "../data/regions";
+import { planCuisinesFor } from "../lib/planner";
 import { bodySummary, fmt } from "../state/derived";
 import { useStore, type Profile, type Role } from "../state/store";
 import { Logo } from "../components/Logo";
@@ -39,11 +41,12 @@ type Draft = {
   activity: ActivityLevel;
   goal: Goal;
   conditions: Condition[];
+  region: string;
 };
 
 export function Onboarding() {
   const navigate = useNavigate();
-  const { completeOnboarding, mode } = useStore();
+  const { completeOnboarding, mode, planPrefs, updatePlanPrefs } = useStore();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,11 +61,12 @@ export function Onboarding() {
     activity: "light",
     goal: "lose",
     conditions: [],
+    region: guessRegion(),
   });
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
 
   const isPro = d.role !== "consumer";
-  const steps = ["role", ...(isPro ? ["verify"] : []), "about", "body", "activity", "goal", "conditions", "results"];
+  const steps = ["role", ...(isPro ? ["verify"] : []), "about", "region", "body", "activity", "goal", "conditions", "results"];
   const current = steps[step];
   const height = Number(d.heightCm);
   const weight = Number(d.weightKg);
@@ -77,13 +81,14 @@ export function Onboarding() {
     activity: d.activity,
     goal: d.goal,
     conditions: d.conditions,
+    region: d.region,
   };
 
   const canContinue =
     (current === "verify" && d.credential.trim().length >= 3) ||
     (current === "about" && d.name.trim() && d.birthDate && new Date(d.birthDate) < new Date()) ||
     (current === "body" && height >= 50 && height <= 250 && weight >= 20 && weight <= 350) ||
-    ["role", "activity", "goal", "conditions", "results"].includes(current);
+    ["role", "region", "activity", "goal", "conditions", "results"].includes(current);
 
   const next = async () => {
     if (current !== "results") {
@@ -94,6 +99,8 @@ export function Onboarding() {
     setError(null);
     try {
       await completeOnboarding(profile, weight, isPro ? d.credential.trim() : undefined);
+      // Meal plans start with dishes from where they eat.
+      updatePlanPrefs({ ...planPrefs, cuisines: planCuisinesFor(regionById(d.region).cuisines) });
       navigate("/home");
     } catch (e) {
       setError(mode === "cloud" ? "We couldn't save your profile. Check your connection and try again." : String(e));
@@ -116,7 +123,7 @@ export function Onboarding() {
           {ROLES.map((r) => (
             <Choice key={r.value} selected={d.role === r.value} onClick={() => set("role", r.value)} label={r.label} hint={r.hint} />
           ))}
-          <p className="muted small">Your health data is private and protected under the Nigeria Data Protection Act.</p>
+          <p className="muted small">Your health data is private. Only you can see it unless you choose to share it.</p>
         </Step>
       )}
 
@@ -153,6 +160,20 @@ export function Onboarding() {
             <span>Date of birth</span>
             <input type="date" value={d.birthDate} onChange={(e) => set("birthDate", e.target.value)} />
           </label>
+        </Step>
+      )}
+
+      {current === "region" && (
+        <Step title="Where do you usually eat?">
+          <p className="muted small">Your food list, recipes and meal plans start with dishes from here. You can change it any time on the Me page.</p>
+          <div className="region-grid" role="radiogroup" aria-label="Region">
+            {REGIONS.map((r) => (
+              <button key={r.id} type="button" role="radio" aria-checked={d.region === r.id} className={`choice region-choice${d.region === r.id ? " selected" : ""}`} onClick={() => set("region", r.id)}>
+                <span className="region-flag" aria-hidden>{r.flag}</span>
+                <span>{r.label}</span>
+              </button>
+            ))}
+          </div>
         </Step>
       )}
 
@@ -239,7 +260,7 @@ function Results({ profile, weightKg }: { profile: Profile; weightKg: number }) 
             <strong className="stat-value">about {fmt(s.target.kcal)} kcal</strong>
           </div>
           {s.target.note && <p className="small">{s.target.note}</p>}
-          <p>Fill about half your plate with vegetables and soup, a quarter with starch (rice, swallow, yam) and a quarter with protein (fish, beans, meat, eggs).</p>
+          <p>Fill about half your plate with vegetables and soup, a quarter with starch (rice, bread, potatoes, swallow) and a quarter with protein (fish, beans, meat, eggs).</p>
         </div>
       ) : (
         <DietitianCard reason={s.target.reason} showLink={false} />
@@ -248,7 +269,7 @@ function Results({ profile, weightKg }: { profile: Profile; weightKg: number }) 
         <div className="stat">
           <span className="stat-label">Water</span>
           <strong className="stat-value">about {fmt(s.waterTargetMl / 1000, 1)} litres</strong>
-          <span className="muted">≈ {Math.round(s.waterTargetMl / 500)} sachets a day</span>
+          <span className="muted">{["nigeria", "ghana"].includes(profile.region ?? "") ? `≈ ${Math.round(s.waterTargetMl / 500)} sachets a day` : `≈ ${Math.round(s.waterTargetMl / 250)} glasses a day`}</span>
         </div>
       </div>
       <Disclaimer />

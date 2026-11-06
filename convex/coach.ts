@@ -11,6 +11,7 @@ import { checkText, getProfile, hasAccess, isAdmin, requireAdmin, requireUser } 
 import { activeTarget, lagosToday } from "./interventions";
 import { foodById, nutrientsFor } from "../src/data/foods";
 import { recipeById } from "../src/data/recipes";
+import { regionById } from "../src/data/regions";
 import { consumerDailyTarget } from "../src/lib/nutrition";
 
 /** Replies per member per Lagos day (admins aren't limited, for testing). */
@@ -212,6 +213,8 @@ export const context = internalQuery({
         goal: profile.goal,
         activity: profile.activity,
         conditions: profile.conditions,
+        region: regionById(profile.region).label,
+        regionCuisines: regionById(profile.region).cuisines,
       },
       target: target
         ? { kind: "dietitian", kcal: target.kcal }

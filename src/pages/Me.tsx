@@ -4,6 +4,8 @@ import { AccountCard, CloudDeleteCard, ImportCard, VerificationCard } from "../c
 import { UsernameCard } from "../components/Social";
 import { Avatar, NAV_ENTRIES } from "../components/Layout";
 import { Card, Disclaimer, Locked } from "../components/ui";
+import { regionById, REGIONS } from "../data/regions";
+import { planCuisinesFor } from "../lib/planner";
 import { CONDITION_LABEL, PAL } from "../lib/nutrition";
 import { bodySummary, fmt } from "../state/derived";
 import { clearInterventionsPreview } from "../state/interventions";
@@ -59,6 +61,8 @@ export function Me() {
         </dl>
       </Card>
 
+      <RegionCard />
+
       {cloud && isPro && <VerificationCard />}
       {cloud && account?.isAdmin && (
         <Card title="Admin" className="card-accent">
@@ -111,5 +115,31 @@ export function Me() {
       <Disclaimer />
       <p className="center"><Link to="/credits" className="link">Photo credits</Link></p>
     </div>
+  );
+}
+
+/** Where the member eats: changes which dishes come first. For moving or travelling. */
+function RegionCard() {
+  const { profile, updateProfile, planPrefs, updatePlanPrefs } = useStore();
+  if (!profile) return null;
+  const region = regionById(profile.region);
+  return (
+    <Card title="Where you eat">
+      <label className="field">
+        <span>Region</span>
+        <select
+          id="region"
+          value={region.id}
+          onChange={(e) => {
+            const next = regionById(e.target.value);
+            updateProfile({ region: next.id });
+            updatePlanPrefs({ ...planPrefs, cuisines: planCuisinesFor(next.cuisines) });
+          }}
+        >
+          {REGIONS.map((r) => <option key={r.id} value={r.id}>{r.flag} {r.label}</option>)}
+        </select>
+      </label>
+      <p className="small muted" style={{ marginBottom: 0 }}>Your food list, recipes and new meal plans start with dishes from here. Travelling or moved? Change it and everything follows. You can still search every cuisine.</p>
+    </Card>
   );
 }

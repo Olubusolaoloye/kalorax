@@ -1,24 +1,4 @@
-import {
-  Bell,
-  BookOpen,
-  Calculator,
-  CalendarDays,
-  CalendarRange,
-  ChefHat,
-  Dumbbell,
-  HeartPulse,
-  LayoutDashboard,
-  MessageCircle,
-  NotebookPen,
-  Plus,
-  ShieldCheck,
-  ShoppingBasket,
-  TrendingUp,
-  UserRound,
-  Users,
-  WifiOff,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, BookOpen, Calculator, CalendarDays, CalendarRange, ChefHat, Dumbbell, HeartPulse, LayoutDashboard, MessageCircle, NotebookPen, Plus, ShieldCheck, ShoppingBasket, TrendingUp, Trophy, UserRound, Users, WifiOff, type LucideIcon } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { canUseWorkbench, useStore } from "../state/store";
@@ -73,6 +53,7 @@ export const NAV_ENTRIES: NavEntry[] = [
   { to: "/grocery", label: "Grocery list", icon: ShoppingBasket, sub: true },
   { to: "/diary", label: "Food diary", icon: NotebookPen },
   { to: "/progress", label: "Progress", icon: TrendingUp },
+  { to: "/challenges", label: "Challenges", icon: Trophy },
   { to: "/exercises", label: "Exercises", icon: Dumbbell },
   { to: "/reminders", label: "Reminders", icon: Bell },
   { to: "/learn", label: "Health insights", icon: BookOpen },

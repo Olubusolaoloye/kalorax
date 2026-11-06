@@ -407,3 +407,18 @@
 .lp-private-hero .lp-lead { margin: 0 auto; max-width: 56ch; }
 .lp-join-solo { width: 100%; margin-top: 2.5rem; text-align: left; }
 @media (min-width: 900px) { .lp-join-solo { grid-template-columns: 1fr; } }
+
+/* Waitlist referrals: place in line and invite link */
+.lp-ref-note { grid-column: 1 / -1; margin: 0; font-weight: 700; color: var(--brand-text); }
+.lp-referral { display: grid; gap: 0.7rem; }
+.lp .lp-referral p { margin: 0; }
+.lp-referral-place { font-size: 1.25rem; color: var(--lp-text); }
+.lp-referral-place strong { font-weight: 800; }
+.lp-referral-dots { display: flex; gap: 0.45rem; }
+.lp-referral-dots span { width: 2.4rem; height: 0.55rem; border-radius: 999px; background: var(--lp-line); box-shadow: inset 0 0 0 1px var(--lp-line); }
+.lp-referral-dots span.on { background: var(--lime-2); box-shadow: none; }
+.lp-referral-link { display: flex; gap: 0.5rem; min-width: 0; }
+.lp-referral-link input { flex: 1; min-width: 0; min-height: 48px; border-radius: 999px; padding: 0 1.1rem; background: var(--lp-paper); border: 1px solid var(--lp-line); font-size: 0.9rem; }
+.lp-referral-link .lp-btn { flex-shrink: 0; }
+.lp-referral-wa { justify-self: start; text-decoration: none; }
+.lp-referral-reset { justify-self: start; background: none; border: 0; padding: 0; color: var(--lp-muted); text-decoration: underline; cursor: pointer; }
