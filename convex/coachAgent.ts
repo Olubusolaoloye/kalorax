@@ -5,8 +5,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
-import { runTool, SYSTEM, TOOLS, type Action, type Ctx } from "./coachTools";
+import { PHOTO_TOOL, runTool, SYSTEM, TOOLS, type Action, type Ctx, type PhotoAnalysis } from "./coachTools";
 
 const MODEL = "claude-opus-5-5";
 // Claude Opus 5.5 prices per million tokens: input, output, cache read, cache write (5 min).
@@ -18,9 +19,10 @@ export const respond = internalAction({
   handler: async (ctx, { userId, replyId }): Promise<null> => {
     let text = "";
     const actions: Action[] = [];
+    let analysis: PhotoAnalysis | undefined;
     const usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
     const finish = async (status: "done" | "error", finalText: string): Promise<null> => {
-      await ctx.runMutation(internal.coach.finishReply, { replyId, text: finalText, status, actions, usage });
+      await ctx.runMutation(internal.coach.finishReply, { replyId, text: finalText, status, actions, analysis, usage });
       return null;
     };
 
@@ -29,7 +31,17 @@ export const respond = internalAction({
 
     // Earlier turns as plain text, starting with the member (consecutive turns of one role are fine).
     const history = c.history.slice(c.history.findIndex((m) => m.role === "user"));
-    const messages: Anthropic.Beta.BetaMessageParam[] = history.map((m) => ({ role: m.role, content: m.text }));
+    // The newest photo goes to the model as an image; older ones are just noted, to keep each reply quick and cheap.
+    const lastPhoto = history.map((m, i) => (m.role === "user" && m.imageId ? i : -1)).filter((i) => i >= 0).at(-1) ?? -1;
+    const hasPhoto = lastPhoto >= 0 && lastPhoto === history.length - 1;
+    const image = lastPhoto >= 0 ? await photoBlock(ctx, history[lastPhoto].imageId!) : null;
+    // Not a real image (e.g. a renamed file): say so instead of guessing. Doesn't count towards today's messages.
+    if (hasPhoto && !image) return finish("error", "I couldn't open that photo. Please take it again, or send a JPG or PNG.");
+    const messages: Anthropic.Beta.BetaMessageParam[] = history.map((m, i): Anthropic.Beta.BetaMessageParam =>
+      i === lastPhoto && image
+        ? { role: "user", content: [image, { type: "text", text: m.text }] }
+        : { role: m.role, content: m.imageId ? `[Sent a food photo] ${m.text}` : m.text },
+    );
     if (messages.length === 0) return finish("error", "Please send your message again.");
     const { history: _h, ...facts } = c;
 
@@ -55,7 +67,7 @@ export const respond = internalAction({
             { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
             { type: "text", text: `<member_context>\n${JSON.stringify(facts)}\n</member_context>` },
           ],
-          tools: TOOLS,
+          tools: hasPhoto ? [...TOOLS, PHOTO_TOOL] : TOOLS,
           messages,
         });
         stream.on("text", (delta) => {
@@ -80,6 +92,12 @@ export const respond = internalAction({
         const results: Anthropic.Beta.BetaToolResultBlockParam[] = toolUses.map((t) => {
           const input = t.input && typeof t.input === "object" ? (t.input as Record<string, unknown>) : {};
           const r = runTool(t.name, input, c);
+          if (r.analysis) {
+            // One breakdown per photo: a second call replaces the first, with its button.
+            const old = analysis ? actions.findIndex((a) => a.portionLabel === "1 serving (photo estimate)") : -1;
+            if (old >= 0) actions.splice(old, 1);
+            analysis = r.analysis;
+          }
           if (r.action && actions.length < 6) actions.push({ ...r.action, id: `a${actions.length + 1}` } as Action);
           return { type: "tool_result", tool_use_id: t.id, content: r.result, ...(r.error ? { is_error: true } : {}) };
         });
@@ -93,3 +111,27 @@ export const respond = internalAction({
     }
   },
 });
+
+type ImageType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+
+/** The image type from the file's first bytes (not the declared type, which can't be trusted). */
+export function sniffImage(b: Uint8Array): ImageType | null {
+  const at = (i: number, ...xs: number[]) => xs.every((x, j) => b[i + j] === x);
+  if (at(0, 0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
+  if (at(0, 0x47, 0x49, 0x46, 0x38)) return "image/gif";
+  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return "image/webp";
+  return null;
+}
+
+/** The stored photo as an image block for the model (base64), or null if it's gone or isn't a real image. */
+async function photoBlock(ctx: { storage: { get: (id: Id<"_storage">) => Promise<Blob | null> } }, imageId: Id<"_storage">): Promise<Anthropic.Beta.BetaImageBlockParam | null> {
+  const blob = await ctx.storage.get(imageId);
+  if (!blob) return null;
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const type = sniffImage(bytes);
+  if (!type) return null;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return { type: "image", source: { type: "base64", media_type: type, data: btoa(binary) } };
+}

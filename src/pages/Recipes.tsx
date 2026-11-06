@@ -2,7 +2,9 @@ import { ArrowLeft, CalendarPlus, ChefHat, Clock, Flame, Gauge, ListOrdered, Min
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Card, MacroTiles, MealTag, NutrientChips, PageHeader, SampleNotice, SearchBox, Sheet, Thumb } from "../components/ui";
-import { CUISINES, RECIPE_PREFIX, type Cuisine } from "../data/foods";
+import { CUISINES, cuisineOrder, RECIPE_PREFIX, type Cuisine } from "../data/foods";
+import { regionById } from "../data/regions";
+import { RECIPE_CUISINES } from "../lib/planner";
 import { INGREDIENTS, RECIPES, recipeById, type Recipe } from "../data/recipes";
 import { fmt } from "../state/derived";
 import { MEALS, todayIso, useStore, weekDates, type Meal } from "../state/store";
@@ -66,6 +68,9 @@ export function AddToPlanSheet({ recipe, onClose }: { recipe: Recipe; onClose: (
 }
 
 export function Recipes() {
+  const { profile } = useStore();
+  // Cuisines that have recipes, with the member's region first.
+  const cuisines = RECIPE_CUISINES(cuisineOrder(regionById(profile?.region).cuisines));
   const [query, setQuery] = useState("");
   const [cuisine, setCuisine] = useState<Cuisine | "All">("All");
   const [meal, setMeal] = useState<Meal | "All">("All");
@@ -83,19 +88,19 @@ export function Recipes() {
   }, [query, cuisine, meal, sort]);
 
   const featured = list[0];
-  const popular = CUISINES.map((c) => RECIPES.find((r) => r.cuisine === c.id)!).filter(Boolean);
+  const popular = cuisines.map((c) => RECIPES.find((r) => r.cuisine === c)!).filter(Boolean);
   const quick = [...RECIPES].sort((a, b) => totalMinutes(a) - totalMinutes(b)).slice(0, 3);
 
   return (
     <div className="page page-aside">
-      <PageHeader title="Healthy menu" subtitle="Recipes from Naija kitchens and around the world">
+      <PageHeader title="Healthy menu" subtitle="Healthy recipes from home kitchens around the world">
         <SearchBox value={query} onChange={setQuery} placeholder="Search recipes" />
       </PageHeader>
 
       <div className="with-aside">
         <div>
           <div className="chip-group chip-scroll" role="group" aria-label="Cuisine">
-            {(["All", ...CUISINES.map((c) => c.id)] as const).map((c) => (
+            {(["All", ...cuisines] as const).map((c) => (
               <button key={c} className={`chip${cuisine === c ? " on" : ""}`} onClick={() => setCuisine(c)}>
                 {c === "All" ? "All cuisines" : `${CUISINES.find((x) => x.id === c)!.emoji} ${CUISINES.find((x) => x.id === c)!.label}`}
               </button>

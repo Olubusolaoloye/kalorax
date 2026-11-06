@@ -82,6 +82,7 @@ function toState(s: Snapshot): PersistedState {
         goal: p.goal,
         conditions: p.conditions,
         username: p.username,
+        region: p.region,
       }
     : null;
   return {
@@ -227,14 +228,14 @@ export function ConvexStoreProvider({ children }: { children: ReactNode }) {
       completeOnboarding: async (p, weightKg, credential) => {
         await createProfile({
           name: p.name, role: p.role, sex: p.sex, birthDate: p.birthDate, heightCm: p.heightCm,
-          activity: p.activity, goal: p.goal, conditions: p.conditions, weightKg,
+          activity: p.activity, goal: p.goal, conditions: p.conditions, region: p.region, weightKg,
           credential: p.role !== "consumer" ? credential : undefined,
         });
       },
       updateProfile: (patch) => {
         // Role and verification are server-controlled; only personal details are editable.
-        const { name, sex, birthDate, heightCm, activity, goal, conditions } = patch;
-        fire(updateProfile({ name, sex, birthDate, heightCm, activity, goal, conditions }));
+        const { name, sex, birthDate, heightCm, activity, goal, conditions, region } = patch;
+        fire(updateProfile({ name, sex, birthDate, heightCm, activity, goal, conditions, region }));
       },
       addDiaryEntries: (entries) => fire(addDiaryEntries({ entries: entries.map(({ date, meal, foodId, grams, portionLabel, loggedAt }) => ({ date, meal, foodId, grams, portionLabel, loggedAt })) })),
       removeDiaryEntry: (id) => { if (!id.startsWith("temp_")) fire(removeDiaryEntry({ id: id as Id<"diary"> })); },

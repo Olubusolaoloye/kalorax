@@ -134,6 +134,8 @@ export const EMOJI_ONLY = new Set([
   "meat-pie", "sausage-roll", "doughnut", "buns", "plantain-chips", "abacha", "tiger-nuts", "coconut",
   "kunu", "fura", "malt-drink", "soft-drink", "chapman", "malt-cocoa", "banana", "orange",
   "pawpaw", "watermelon", "pineapple", "mango", "agbalumo", "garden-egg",
+  // Dishes from other regions, added without photos yet.
+  "bagel", "mac-cheese", "sandwich", "banku", "kenkey", "gh-fufu", "waakye", "gh-jollof", "light-soup", "groundnut-soup", "palm-nut-soup", "kontomire", "red-red", "grilled-tilapia", "shito", "kelewele", "sobolo", "ugali", "chapati", "pilau", "injera", "matoke", "sukuma-wiki", "nyama-choma", "githeri", "doro-wat", "mandazi", "beef-samosa", "rolex", "chai", "sa-pap", "bobotie", "bunny-chow", "samp-beans", "boerewors", "braai-chicken", "biltong", "chakalaka", "vetkoek", "koeksister", "rusk", "malva", "jerk-chicken", "curry-goat", "ackee-saltfish", "oxtail", "trini-roti", "rice-peas", "callaloo", "festival", "bammy", "patty", "doubles", "sorrel", "borscht", "shchi", "solyanka", "pelmeni", "vareniki", "stroganoff", "plov", "grechka", "syrniki", "blini", "pirozhki", "rye-bread", "olivier", "shuba", "kefir", "dal", "chana-masala", "butter-chicken", "palak-paneer", "rajma", "biryani", "basmati", "roti", "naan", "masala-dosa", "idli", "poha", "veg-samosa", "pakora", "masala-chai", "steamed-rice", "chow-mein", "congee", "kung-pao", "sweet-sour-pork", "mapo-tofu", "beef-broccoli", "peking-duck", "jiaozi", "bao", "spring-rolls", "hot-sour-soup",
 ]);
 
 export function photoFor(key: string): Photo | undefined {

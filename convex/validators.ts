@@ -28,6 +28,8 @@ export const profileFields = {
   activity,
   goal,
   conditions: v.array(condition),
+  /** Where the member eats (see src/data/regions.ts). Missing on profiles made before regions: treated as Nigeria. */
+  region: v.optional(v.string()),
 };
 
 export const diaryFields = {
@@ -63,7 +65,10 @@ export const exerciseFields = {
   status: exerciseStatus,
 };
 
-const cuisine = v.union(v.literal("Nigerian"), v.literal("Continental"), v.literal("International"));
+const cuisine = v.union(
+  v.literal("Nigerian"), v.literal("Ghanaian"), v.literal("East African"), v.literal("South African"), v.literal("Continental"),
+  v.literal("Caribbean"), v.literal("Russian"), v.literal("Indian"), v.literal("Chinese"), v.literal("International"),
+);
 const allergen = v.union(v.literal("egg"), v.literal("dairy"), v.literal("peanut"), v.literal("fish"), v.literal("shellfish"), v.literal("gluten"));
 
 /** Mirrors PlanPrefs in src/lib/planner.ts. */
@@ -132,4 +137,16 @@ export const sharedGrocery = v.object({
   title: v.string(),
   people: v.number(),
   items: v.array(v.object({ key: v.string(), name: v.string(), category: v.string(), qty: v.number(), unit: v.string(), costNaira: v.number() })),
+});
+
+/** The AI coach's estimate for a food photo. Mirrors PhotoAnalysis in convex/coachTools.ts. */
+export const photoAnalysis = v.object({
+  dish: v.string(),
+  confidence: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+  items: v.array(v.object({ name: v.string(), amount: v.string(), kcal: v.number() })),
+  kcal: v.number(),
+  carbs: v.number(),
+  protein: v.number(),
+  fat: v.number(),
+  note: v.optional(v.string()),
 });

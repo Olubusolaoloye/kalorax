@@ -211,7 +211,19 @@ export const deleteMyData = mutation({
       for (const r of await ctx.db.query(table).withIndex("by_user", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(r._id);
     }
     for (const r of await ctx.db.query("reminderLog").withIndex("by_user_key", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(r._id);
-    for (const r of await ctx.db.query("coachMessages").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(r._id);
+    for (const r of await ctx.db.query("coachMessages").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      if (r.imageId) await ctx.storage.delete(r.imageId);
+      await ctx.db.delete(r._id);
+    }
+    // Leave every team; a team they owned passes to the longest-standing member, or closes if they were the last.
+    for (const m of await ctx.db.query("teamMembers").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
+      await ctx.db.delete(m._id);
+      const team = await ctx.db.get(m.teamId);
+      if (!team) continue;
+      const next = await ctx.db.query("teamMembers").withIndex("by_team", (q) => q.eq("teamId", team._id)).first();
+      if (!next) await ctx.db.delete(team._id);
+      else if (team.ownerId === userId) await ctx.db.patch(team._id, { ownerId: next.userId });
+    }
     for (const r of await ctx.db.query("verifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
       if (r.documentId) await ctx.storage.delete(r.documentId);
       await ctx.db.delete(r._id);

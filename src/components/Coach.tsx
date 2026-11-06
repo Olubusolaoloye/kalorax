@@ -1,11 +1,12 @@
 // Kalorax Coach chat (cloud mode): an AI companion that reads the member's logs, answers questions and
 // offers one-tap actions (add to diary / add to plan). Replies stream in from convex/coachAgent.ts.
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, CalendarPlus, Check, NotebookPen, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Camera, Check, ImagePlus, NotebookPen, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorText } from "../lib/errors";
+import { shrinkPhoto } from "../lib/photo";
 import { LogoMark } from "./Logo";
 import { MessageBox } from "./MessageBox";
 
@@ -43,6 +44,10 @@ export function CoachThread({ onBack }: { onBack: () => void }) {
   const apply = useMutation(api.coach.applyAction);
   const dismiss = useMutation(api.coach.dismissAction);
   const clear = useMutation(api.coach.clear);
+  const uploadUrl = useMutation(api.coach.photoUploadUrl);
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +72,33 @@ export function CoachThread({ onBack }: { onBack: () => void }) {
       setSending(false);
     }
   };
+
+  /** Snap or pick a photo: shrink it, upload it, and ask the coach what's in it (with any text typed so far). */
+  const sendPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    setPhotoBusy(true);
+    try {
+      const photo = await shrinkPhoto(file);
+      const res = await fetch(await uploadUrl(), { method: "POST", headers: { "Content-Type": photo.type }, body: photo });
+      if (!res.ok) throw new Error("The photo didn't upload. Check your connection and try again.");
+      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+      await send({ text: text.trim(), imageId: storageId });
+      setText("");
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setPhotoBusy(false);
+      if (camera.current) camera.current.value = "";
+      if (gallery.current) gallery.current.value = "";
+    }
+  };
+  const photoInputs = (
+    <>
+      <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void sendPhoto(e.target.files?.[0])} />
+      <input ref={gallery} type="file" accept="image/*" hidden onChange={(e) => void sendPhoto(e.target.files?.[0])} />
+    </>
+  );
 
   const header = (
     <header className="chat-head">
@@ -108,7 +140,8 @@ export function CoachThread({ onBack }: { onBack: () => void }) {
           <h2>Meet your Kalorax Coach</h2>
           <p>Ask what to eat, tell it what you had and add it to your diary in one tap, plan meals within your budget, or check how your week went.</p>
           <ul className="coach-points small">
-            <li><ShieldCheck size={15} aria-hidden /> To answer, the coach reads your profile, target, food diary, water, weight and meal plan. These are sent to our AI provider (Anthropic) to write each reply, and aren't used to train AI models.</li>
+            <li><ShieldCheck size={15} aria-hidden /> To answer, the coach reads your profile, target, food diary, water, weight and meal plan, and any food photos you send. These are sent to our AI provider (Anthropic) to write each reply, and aren't used to train AI models.</li>
+            <li><Camera size={15} aria-hidden /> Snap your plate and it estimates the dish, its ingredients and calories, ready to add to your diary.</li>
             <li><Check size={15} aria-hidden /> It never changes your diary or plan by itself: you tap to add what it suggests.</li>
             <li><Sparkles size={15} aria-hidden /> It's an AI and can make mistakes. It isn't medical advice: for health conditions, work with a verified dietitian under Programmes.</li>
             {data.limit !== null && <li><NotebookPen size={15} aria-hidden /> Up to {data.limit} messages a day.</li>}
@@ -128,6 +161,7 @@ export function CoachThread({ onBack }: { onBack: () => void }) {
           <div className="coach-intro">
             <p className="muted small">Hi! Ask me anything about your food and fitness, or try:</p>
             <div className="coach-starters">
+              <button className="chip chip-photo" disabled={sending || photoBusy || outOfMessages} onClick={() => camera.current?.click()}><Camera size={14} aria-hidden /> Snap your plate</button>
               {STARTERS.map((s) => (
                 <button key={s} className="chip" disabled={sending || outOfMessages} onClick={() => void ask(s)}>{s}</button>
               ))}
@@ -135,7 +169,9 @@ export function CoachThread({ onBack }: { onBack: () => void }) {
           </div>
         )}
         {data.messages.map((m) => (
-          <div key={m.id} className={`bubble ${m.role === "user" ? "me" : "them coach-bubble"}${m.status === "error" ? " is-error" : ""}`}>
+          <div key={m.id} className={`bubble ${m.role === "user" ? "me" : "them coach-bubble"}${m.status === "error" ? " is-error" : ""}${m.imageUrl ? " has-photo" : ""}`}>
+            {m.imageUrl && <img className="coach-photo" src={m.imageUrl} alt="Your food photo" loading="lazy" />}
+            {m.analysis && <PhotoCard a={m.analysis} />}
             {m.role === "assistant" && m.status === "streaming" && !m.text ? (
               <p className="coach-typing" aria-label="The coach is typing"><i /><i /><i /></p>
             ) : (
@@ -161,15 +197,60 @@ export function CoachThread({ onBack }: { onBack: () => void }) {
             ))}
           </div>
         ))}
+        {photoBusy && <p className="small muted coach-photo-busy"><Camera size={14} aria-hidden /> Sending your photo…</p>}
         <div ref={end} />
       </div>
+      {photoInputs}
       {outOfMessages ? (
         <p className="small muted chat-blocked">You've used today's {data.limit} coach messages. They reset at midnight.</p>
       ) : (
-        <MessageBox value={text} onChange={setText} onSend={() => void ask(text)} busy={sending || streaming} placeholder="Ask your coach…" />
+        <MessageBox
+          value={text}
+          onChange={setText}
+          onSend={() => void ask(text)}
+          busy={sending || streaming || photoBusy}
+          placeholder="Ask, or snap your plate…"
+          before={
+            <>
+              <button type="button" className="icon-btn sm ghost" disabled={sending || streaming || photoBusy} onClick={() => camera.current?.click()} aria-label="Take a photo of your food" title="Take a photo of your food"><Camera size={17} /></button>
+              <button type="button" className="icon-btn sm ghost" disabled={sending || streaming || photoBusy} onClick={() => gallery.current?.click()} aria-label="Choose a food photo" title="Choose a food photo"><ImagePlus size={17} /></button>
+            </>
+          }
+        />
       )}
       {data.remaining !== null && !outOfMessages && <p className="small muted coach-remaining">{data.remaining} of {data.limit} messages left today</p>}
       {error && <p className="small error chat-error" role="alert">{error}</p>}
     </section>
+  );
+}
+
+type Analysis = { dish: string; confidence: "low" | "medium" | "high"; items: Array<{ name: string; amount: string; kcal: number }>; kcal: number; carbs: number; protein: number; fat: number; note?: string };
+const CONFIDENCE = { low: "Rough guess", medium: "Fair estimate", high: "Good estimate" };
+
+/** The coach's breakdown of a food photo: dish, ingredients with amounts and calories, and the totals. */
+function PhotoCard({ a }: { a: Analysis }) {
+  return (
+    <div className="photo-card">
+      <div className="photo-card-head">
+        <strong>{a.dish}</strong>
+        <span className={`tag photo-conf conf-${a.confidence}`}>{CONFIDENCE[a.confidence]}</span>
+      </div>
+      <div className="photo-total"><strong>{a.kcal.toLocaleString()}</strong> kcal</div>
+      <div className="photo-macros">
+        <span className="carbs">{a.carbs} g carbs</span>
+        <span className="protein">{a.protein} g protein</span>
+        <span className="fat">{a.fat} g fat</span>
+      </div>
+      <ul className="photo-items">
+        {a.items.map((it, i) => (
+          <li key={i}>
+            <span className="grow"><b>{it.name}</b><small>{it.amount}</small></span>
+            <span className="photo-kcal">{it.kcal} kcal</span>
+          </li>
+        ))}
+      </ul>
+      {a.note && <p className="small muted photo-note">{a.note}</p>}
+      <p className="small muted photo-note">Estimated from your photo, so it can be off. Adjust in your diary if you know better.</p>
+    </div>
   );
 }

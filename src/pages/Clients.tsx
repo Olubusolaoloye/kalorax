@@ -11,7 +11,7 @@ import { ALLERGENS, recipeById, type Allergen } from "../data/recipes";
 import { errorText } from "../lib/errors";
 import { clientFlags, priceError, programmeWeek, splitPayment, targetError, type ClientDetail, type ClientSummary } from "../lib/interventions";
 import { CONDITION_LABEL, MACRO_PRESETS, PAL, calculateBmi, calculateEnergy } from "../lib/nutrition";
-import { DEFAULT_PLAN_PREFS, personalWeekPlan, portionLabel, swapOptions, type PlannedItem } from "../lib/planner";
+import { DEFAULT_PLAN_PREFS, personalWeekPlan, portionLabel, swapOptions, type PlannedItem, RECIPE_CUISINES } from "../lib/planner";
 import { dailyTotals, fmt } from "../state/derived";
 import { useInterventions, type PlanItem } from "../state/interventions";
 import { FEELINGS, MEALS, ageFromBirthDate, canUseWorkbench, shiftDate, todayIso, useStore, weekDates } from "../state/store";
@@ -542,7 +542,7 @@ function PlanCard({ c }: { c: ClientDetail }) {
             <button className="btn btn-ink btn-small" onClick={generate}>Generate from target</button>
           </div>
           <div className="chip-row">
-            {CUISINES.map((x) => {
+            {CUISINES.filter((x) => RECIPE_CUISINES([x.id]).length).map((x) => {
               const on = cuisines.includes(x.id);
               return <button key={x.id} className={`chip chip-outline${on ? " on" : ""}`} aria-pressed={on} onClick={() => on ? cuisines.length > 1 && setCuisines(cuisines.filter((y) => y !== x.id)) : setCuisines([...cuisines, x.id])}>{x.label}</button>;
             })}

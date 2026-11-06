@@ -70,7 +70,7 @@ Create an account with the email you put in `ADMIN_EMAILS`, and the **Verificati
 ## Going live on Netlify
 
 1. In the Convex dashboard, open your project → **Production** → **Settings** → generate a **Production deploy key**.
-2. Set up auth keys for production: `npx @convex-dev/auth --prod` (use `https://kalorax.netlify.app` as the site URL), then
+2. Set up auth keys for production: `npx @convex-dev/auth --prod` (use `https://kalorax.app` as the site URL), then
    `npx convex env set --prod ADMIN_EMAILS "you@example.com"`.
 3. In Netlify → **kalorax** → **Project configuration → Environment variables**, add `CONVEX_DEPLOY_KEY` with that key.
 4. Redeploy. The build (`npm run build:ci`) deploys the Convex functions, sets `VITE_CONVEX_URL` automatically, and builds the app in cloud mode.
@@ -78,8 +78,8 @@ Create an account with the email you put in `ADMIN_EMAILS`, and the **Verificati
 
 ## Password reset emails (Resend)
 
-1. Create a free account at https://resend.com, verify your sending domain (e.g. `kalorax.ng`) and create an API key.
-2. `npx convex env set AUTH_RESEND_KEY re_xxx` and `npx convex env set AUTH_EMAIL_FROM "Kalorax <no-reply@kalorax.ng>"` (add `--prod` for production).
+1. Create a free account at https://resend.com, verify your sending domain (e.g. `kalorax.app`) and create an API key.
+2. `npx convex env set AUTH_RESEND_KEY re_xxx` and `npx convex env set AUTH_EMAIL_FROM "Kalorax <no-reply@kalorax.app>"` (add `--prod` for production).
 
 The same key and sender also send the waitlist welcome email.
 
@@ -92,7 +92,7 @@ Without these, "Forgot password?" tells people reset isn't available yet.
    ```bash
    npx convex env set VAPID_PUBLIC_KEY  "<public key>"
    npx convex env set VAPID_PRIVATE_KEY "<private key>"
-   npx convex env set VAPID_SUBJECT     "mailto:hello@kalorax.ng"
+   npx convex env set VAPID_SUBJECT     "mailto:hello@kalorax.app"
    ```
 3. Members turn notifications on per device under **Reminders**. On iPhone, push only works once Kalorax is added to the Home Screen (iOS 16.4+).
 

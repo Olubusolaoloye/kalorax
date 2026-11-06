@@ -13,6 +13,7 @@ import {
   noteFields,
   noteSlot,
   planPrefs,
+  photoAnalysis,
   profileFields,
   reminderSettings,
   sharedGrocery,
@@ -86,7 +87,31 @@ export default defineSchema({
     reminders: v.optional(reminderSettings),
     /** When the member agreed to share their logs with the AI coach. */
     coachConsentAt: v.optional(v.number()),
+    /** On: friends (people they chat with) see their weekly challenge points. Off unless they join. */
+    leaderboard: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
+
+  /** A company, gym or club doing weekly challenges together. People join with the team's code. */
+  teams: defineTable({
+    name: v.string(),
+    kind: v.union(v.literal("company"), v.literal("gym"), v.literal("club")),
+    /** Join code, 8 characters. The owner can change it to stop the old one working. */
+    code: v.string(),
+    ownerId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_owner", ["ownerId"]),
+
+  /** Joining a team shares your weekly challenge points (never your food or weight) with its members. */
+  teamMembers: defineTable({
+    teamId: v.id("teams"),
+    userId: v.id("users"),
+    joinedAt: v.number(),
+  })
+    .index("by_team", ["teamId"])
+    .index("by_user", ["userId"])
+    .index("by_team_user", ["teamId", "userId"]),
 
   /** Chat with the Kalorax AI coach. Assistant replies stream in (status "streaming") and may carry one-tap actions. */
   coachMessages: defineTable({
@@ -113,8 +138,14 @@ export default defineSchema({
         }),
       ),
     ),
+    /** A food photo the member sent (theirs only; deleted with the chat). */
+    imageId: v.optional(v.id("_storage")),
+    /** The coach's breakdown of a food photo: the dish, its ingredients and estimated nutrition. */
+    analysis: v.optional(photoAnalysis),
     createdAt: v.number(),
-  }).index("by_user", ["userId", "createdAt"]),
+  })
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_image", ["imageId"]),
 
   /** AI coach usage per Lagos day, across everyone, for the admin overview (no message content). */
   coachDaily: defineTable({
@@ -341,5 +372,15 @@ export default defineSchema({
     email: v.string(),
     role: v.union(v.literal("member"), v.literal("student"), v.literal("dietitian")),
     createdAt: v.number(),
-  }).index("by_email", ["email"]),
+    /** Private referral code for their share link (/?ref=CODE). Older entries get one when they come back. */
+    code: v.optional(v.string()),
+    /** The entry whose link they joined with. */
+    referredBy: v.optional(v.id("waitlist")),
+    /** How many new people joined with their link. */
+    referrals: v.optional(v.number()),
+    /** When they reached the referral goal: from then on they're in the first invite group. */
+    boostedAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_code", ["code"]),
 });

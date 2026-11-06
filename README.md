@@ -2,7 +2,7 @@
 
 Eat well. Move more. Feel good. Kalorax is a nutrition and fitness web app (a mobile-first React PWA), starting in Nigeria.
 
-Live at https://kalorax.netlify.app. Formerly Nutrintel (and before that Nutrifi): data a browser saved under the old names moves to the new name automatically.
+Live at https://kalorax.app. Formerly Nutrintel (and before that Nutrifi): data a browser saved under the old names moves to the new name automatically.
 
 ## Brand
 
